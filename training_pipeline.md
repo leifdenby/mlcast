@@ -3,19 +3,23 @@
 ```mermaid
 flowchart TB
     A["mlcast-datasets intake repo<br />zarr URL"]
+    H["user-provided zarr dataset URL"]
     B["source dataset<br />shape: [n_time, x, y]"]
     C["Tiled xr.DataArray<br />shape: [tile_id, n_time_window, x_tile, y_tile]"]
     D["Sampled xr.DataArray<br />shape: [sampled_tile_id, n_time_sample, x_tile, y_tile]"]
-    E["torch.Tensor"]
+    I["Normalized xr.DataArray<br />shape: [sampled_tile_id, n_time_sample, x_tile, y_tile]"]
+    E["torch.Tensor<br />shape: [batch_size, n_time_sample, x_tile, y_tile]"]
     F["CSV index<br />{tiling_id}.samples.csv"]
     G["CSV index<br />{sampling_id}.samples.csv"]
 
-    A -- "open dataset:<br />OpenXarrayDataset()" --> B
+    A -- "open dataset:<br />OpenMLCastDataset()" --> B
+    H -- "open dataset:<br />OpenXarrayDataset()" --> B
     B -- "tiling step:<br />TilingSampler()" --> C
     C -- "write samples index:<br />{tiling_id}.samples.csv<br />tiling_id = f\"{dataset_id}.{tile_size}.{n_time_window}\"" --> F
     C -- "sampling step:<br />BinNormSampler()" --> D
     D -- "write samples index:<br />{sampling_id}.samples.csv<br />sampling_id = f\"{tiling_id}.{n_time_sample}\"" --> G
-    D -- "batching step" --> E
+    D -- "normalize step:<br />NormalizeForTraining()" --> I
+    I -- "batching step" --> E
 ```
 
 ```python
@@ -33,13 +37,17 @@ source_dp = OpenXarrayDataset(zarr_url)
 
 # Define pipeline operations first.
 operations = [
+    MLCastCatalogDataset(
+        "dmi.precipitation.5min", var_name="rainrate"
+    ),
     TilingSampler(
         n_time_window=12,
         tile_size=(128, 128),
     ),
     BinNormSampler(
-        n_time_sample=6,
+        n_scalar_total_bins=10,
     ),
+    ToTorchTensor()
 ]
 
 # Apply operations in order:

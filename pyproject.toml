@@ -32,9 +32,11 @@ classifiers = [
 ]
 
 dependencies = [
+  "cf_xarray>=0.10",
   "fire>=0.7",
   "ipykernel>=6.29.5",
   "lightning>=2.5.2",
+  "mlcast-datasets>=0.1.0",
   "numpy>=2.2.6",
   "torch>=2.7.1",
   "xarray>=2025.6.1",
