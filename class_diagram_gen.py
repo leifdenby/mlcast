@@ -35,6 +35,10 @@ RELEVANT_EXTERNAL_BASE_NAMES = {
     "Sequential",
 }
 
+RELEVANT_EXTERNAL_INSTANTIATION_NAMES = {
+    "Trainer",
+}
+
 EXPLICIT_RELEVANT_CLASSES = {
     "LDCast",
     "PLMSSampler",
@@ -55,6 +59,7 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
         self.class_modules = {}  # Dictionary to store class to module mapping
         self.external_inheritance = []  # List to store external class inheritance
         self.instantiations = []  # List to store class instantiations
+        self.external_instantiations = []  # Relevant external classes instantiated by tracked classes
         self.references = []  # List to store class references (e.g., via dataclass fields)
         self.memberships = []  # List to store class memberships via type annotations
         self.current_class = None  # Track the current class
@@ -101,8 +106,14 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
             if isinstance(base, ast.Name):
                 if base.id in ("ABC", "ABCMeta"):
                     is_abc = True
-                else:
+                elif base.id in self.class_hierarchy:
                     parents.append(base.id)
+                else:
+                    resolved_external = self.resolve_imported_symbol(base.id)
+                    if resolved_external:
+                        self.external_inheritance.append((self.current_class, resolved_external))
+                    else:
+                        parents.append(base.id)
             elif isinstance(base, ast.Attribute):
                 external_name = self.get_full_attribute_name(base)
                 if external_name in ("abc.ABC", "abc.ABCMeta"):
@@ -144,17 +155,29 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
     def _record_membership_from_annotation(self, annotation):
         if annotation is None:
             return
+        for member_class in self._get_annotation_class_names(annotation):
+            if member_class and member_class in self.class_hierarchy:
+                edge = (self.current_class, member_class)
+                if edge not in self.memberships:
+                    self.memberships.append(edge)
+                    logger.debug(f"Detected membership: {self.current_class} -> {member_class}")
+
+    def _get_annotation_class_names(self, annotation):
         if isinstance(annotation, ast.Name | ast.Attribute):
-            member_class = self.get_class_name_from_node(annotation)
-        elif isinstance(annotation, ast.Subscript):
-            member_class = self.get_class_name_from_node(annotation.slice)
-        else:
-            return
-        if member_class and member_class in self.class_hierarchy:
-            edge = (self.current_class, member_class)
-            if edge not in self.memberships:
-                self.memberships.append(edge)
-                logger.debug(f"Detected membership: {self.current_class} -> {member_class}")
+            class_name = self.get_class_name_from_node(annotation)
+            return [class_name] if class_name else []
+        if isinstance(annotation, ast.Subscript):
+            return self._get_annotation_class_names(annotation.slice)
+        if isinstance(annotation, ast.BinOp) and isinstance(annotation.op, ast.BitOr):
+            return self._get_annotation_class_names(annotation.left) + self._get_annotation_class_names(
+                annotation.right
+            )
+        if isinstance(annotation, ast.Tuple):
+            class_names = []
+            for elt in annotation.elts:
+                class_names.extend(self._get_annotation_class_names(elt))
+            return class_names
+        return []
 
     def _inspect_init_params(self, init_node):
         # Record memberships from __init__ parameter annotations
@@ -174,6 +197,7 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
             if not isinstance(sub, ast.Call):
                 continue
             class_name = self.get_class_name_from_node(sub.func)
+            raw_class_name = self.get_full_attribute_name(sub.func) or class_name
             if not class_name:
                 continue
             resolved_class = self.resolve_imported_class(class_name)
@@ -182,10 +206,13 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
                 if edge not in self.instantiations:
                     self.instantiations.append(edge)
                     logger.info(f"Detected instantiation in {func_node.name}: {self.current_class} -> {resolved_class}")
+                continue
+            self._record_external_instantiation(class_name, raw_class_name, func_node.name)
 
     def visit_Assign(self, node):
         if isinstance(node.value, ast.Call) and self.current_class:
             class_name = self.get_class_name_from_node(node.value.func)
+            raw_class_name = self.get_full_attribute_name(node.value.func) or class_name
             logger.debug(f"Assignment detected in class '{self.current_class}': class_name='{class_name}'")
             resolved_class = self.resolve_imported_class(class_name)
             logger.debug(f"Resolved class: '{resolved_class}'")
@@ -194,7 +221,24 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
                 if edge not in self.instantiations:
                     logger.info(f"Detected instantiation: {self.current_class} -> {resolved_class}")
                     self.instantiations.append(edge)
+            else:
+                self._record_external_instantiation(class_name, raw_class_name)
         self.generic_visit(node)
+
+    def _record_external_instantiation(self, class_name, raw_class_name="", context_name=None):
+        if not class_name or not self.current_class:
+            return
+        resolved_name = self.resolve_relevant_external_class(class_name, raw_class_name)
+        if not resolved_name:
+            return
+        edge = (self.current_class, resolved_name)
+        if edge in self.external_instantiations:
+            return
+        self.external_instantiations.append(edge)
+        if context_name:
+            logger.info(f"Detected external instantiation in {context_name}: {self.current_class} -> {resolved_name}")
+        else:
+            logger.info(f"Detected external instantiation: {self.current_class} -> {resolved_name}")
 
     def resolve_imported_class(self, class_name):
         if class_name in self.class_hierarchy:
@@ -203,6 +247,30 @@ class ClassHierarchyExtractor(ast.NodeVisitor):
             if full_name.split(".")[-1] == class_name:
                 return full_name.split(".")[-1]
         return ""
+
+    def resolve_relevant_external_class(self, class_name, raw_class_name=""):
+        resolved_symbol = self.resolve_imported_symbol(raw_class_name)
+        if resolved_symbol and resolved_symbol.split(".")[-1] in RELEVANT_EXTERNAL_INSTANTIATION_NAMES:
+            return resolved_symbol
+        for full_name in self.imports.values():
+            if full_name.split(".")[-1] != class_name:
+                continue
+            if class_name in RELEVANT_EXTERNAL_INSTANTIATION_NAMES:
+                return full_name
+        return class_name if class_name in RELEVANT_EXTERNAL_INSTANTIATION_NAMES else ""
+
+    def resolve_imported_symbol(self, symbol_name):
+        if not symbol_name:
+            return ""
+        if symbol_name in self.imports:
+            return self.imports[symbol_name]
+        if "." not in symbol_name:
+            return self.imports.get(symbol_name, "")
+        root_name, _, remainder = symbol_name.partition(".")
+        imported_root = self.imports.get(root_name)
+        if not imported_root:
+            return ""
+        return f"{imported_root}.{remainder}" if remainder else imported_root
 
     def get_class_name_from_node(self, node):
         if isinstance(node, ast.Name):
@@ -224,6 +292,7 @@ def extract_class_hierarchy_from_paths(paths, base_module):
     modules = {}
     instantiations = []
     external_inheritance = []
+    external_instantiations = []
     references = []
     memberships = []
     abc_classes = set()
@@ -256,6 +325,9 @@ def extract_class_hierarchy_from_paths(paths, base_module):
         for edge in extractor.external_inheritance:
             if edge not in external_inheritance:
                 external_inheritance.append(edge)
+        for edge in extractor.external_instantiations:
+            if edge not in external_instantiations:
+                external_instantiations.append(edge)
         for edge in extractor.references:
             if edge not in references:
                 references.append(edge)
@@ -269,6 +341,7 @@ def extract_class_hierarchy_from_paths(paths, base_module):
         modules,
         instantiations,
         external_inheritance,
+        external_instantiations,
         references,
         memberships,
         abc_classes,
@@ -426,6 +499,7 @@ def write_drawio_diagram(
     class_modules,
     instantiations,
     external_inheritance,
+    external_instantiations,
     memberships,
     output_file,
     abc_classes=None,
@@ -659,6 +733,7 @@ def write_drawio_diagram(
         layout_class_grid(unclustered_id, unclustered_classes, DRAWIO_CONTAINER_INSET_X, 36)
 
     external_base_keys = {}
+    external_instantiation_keys = {}
 
     def ensure_external_base(parent_name):
         nonlocal external_y
@@ -677,6 +752,26 @@ def write_drawio_diagram(
             include_module_name=False,
         )
         external_base_keys[parent_name] = external_key
+        external_y += 76
+        return external_key
+
+    def ensure_external_instantiation(class_name):
+        nonlocal external_y
+        external_key = f"external-inst:{class_name}"
+        if external_key in node_ids:
+            return external_key
+        add_class_cell(
+            "1",
+            external_key,
+            class_name,
+            class_name,
+            cluster_x + cluster_width + 120,
+            external_y,
+            fill="#dae8fc",
+            stroke="#6c8ebf",
+            include_module_name=False,
+        )
+        external_instantiation_keys[class_name] = external_key
         external_y += 76
         return external_key
 
@@ -716,6 +811,16 @@ def write_drawio_diagram(
             f"{DRAWIO_EDGE_STYLE}dashed=1;endArrow=open;strokeColor=#666666;",
         )
 
+    for source, target in external_instantiations:
+        if source not in relevant_classes:
+            continue
+        external_key = ensure_external_instantiation(target)
+        add_edge(
+            external_key,
+            source,
+            f"{DRAWIO_EDGE_STYLE}dashed=1;endArrow=open;strokeColor=#b85450;",
+        )
+
     for source, target in memberships:
         if source not in relevant_classes or target not in relevant_classes:
             continue
@@ -737,6 +842,7 @@ def generate_class_diagram(
     class_modules,
     instantiations,
     external_inheritance,
+    external_instantiations,
     references,
     memberships,
     output_file,
@@ -851,6 +957,18 @@ def generate_class_diagram(
             continue
         dot.edge(inst[1], inst[0], style="dotted")
 
+    for ext_inst in external_instantiations:
+        if ext_inst[0] not in relevant_classes:
+            continue
+        dot.node(
+            ext_inst[1],
+            ext_inst[1],
+            style="filled",
+            fillcolor="lightblue",
+            color="blue",
+        )
+        dot.edge(ext_inst[1], ext_inst[0], style="dotted", color="blue")
+
     for mem in memberships:
         if mem[0] not in relevant_classes or mem[1] not in relevant_classes:
             continue
@@ -867,6 +985,8 @@ def generate_class_diagram(
         legend.node("member_of_b", "", shape="plaintext")
         legend.node("instantiates_a", "instantiated by", shape="plaintext")
         legend.node("instantiates_b", "", shape="plaintext")
+        legend.node("ext_instantiates_a", "externally instantiated by", shape="plaintext")
+        legend.node("ext_instantiates_b", "", shape="plaintext")
         legend.node(
             "abc_example",
             "abstract base class",
@@ -878,6 +998,7 @@ def generate_class_diagram(
         legend.edge("inherits_external_a", "inherits_external_b", color="blue")
         legend.edge("member_of_a", "member_of_b", style="dashed")
         legend.edge("instantiates_a", "instantiates_b", style="dotted")
+        legend.edge("ext_instantiates_a", "ext_instantiates_b", style="dotted", color="blue")
 
     dot.render(output_file, view=view)
 
@@ -944,6 +1065,7 @@ def main():
         class_modules,
         instantiations,
         external_inheritance,
+        external_instantiations,
         references,
         memberships,
         abc_classes,
@@ -957,6 +1079,7 @@ def main():
                 class_modules,
                 instantiations,
                 external_inheritance,
+                external_instantiations,
                 memberships,
                 args.output,
                 abc_classes=abc_classes,
@@ -969,6 +1092,7 @@ def main():
                 class_modules,
                 instantiations,
                 external_inheritance,
+                external_instantiations,
                 references,
                 memberships,
                 args.output,
