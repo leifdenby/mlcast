@@ -256,14 +256,53 @@ def normalized_to_rainfall_amount_5min(normalized: np.ndarray) -> np.ndarray:
     return rainfall_rate * _5MIN_ACCUMULATION_HOURS
 
 
+def equivalent_reflectivity_factor_to_normalized(reflectivity: np.ndarray) -> np.ndarray:
+    """Normalize equivalent reflectivity factor from dBZ to [-1, 1].
+
+    Parameters
+    ----------
+    reflectivity : np.ndarray
+        Equivalent reflectivity factor in dBZ. Can be any shape.
+
+    Returns
+    -------
+    normalized : np.ndarray
+        Normalized reflectivity in [-1, 1]. Same shape as input.
+    """
+    return normalize_reflectivity(reflectivity)
+
+
+def normalized_to_equivalent_reflectivity_factor(normalized: np.ndarray) -> np.ndarray:
+    """Denormalize from [-1, 1] to equivalent reflectivity factor in dBZ.
+
+    Parameters
+    ----------
+    normalized : np.ndarray
+        Normalized reflectivity in [-1, 1]. Can be any shape.
+
+    Returns
+    -------
+    reflectivity : np.ndarray
+        Equivalent reflectivity factor in dBZ. Same shape as input.
+    """
+    return denormalize_reflectivity(normalized)
+
+
+NORMALIZATION_UNITS = {
+    "equivalent_reflectivity_factor": {"dBZ"},
+}
+
+
 NORMALIZATION_REGISTRY = {
     "rainfall_rate": rainfall_rate_to_normalized,
     "rainfall_flux": rainfall_flux_to_normalized,
     "rainfall_amount": rainfall_amount_5min_to_normalized,
+    "equivalent_reflectivity_factor": equivalent_reflectivity_factor_to_normalized,
 }
 
 DENORMALIZATION_REGISTRY = {
     "rainfall_rate": normalized_to_rainfall_rate,
     "rainfall_flux": normalized_to_rainfall_flux,
     "rainfall_amount": normalized_to_rainfall_amount_5min,
+    "equivalent_reflectivity_factor": normalized_to_equivalent_reflectivity_factor,
 }

@@ -4,6 +4,7 @@ import pytest
 from mlcast.data.normalization import (
     DENORMALIZATION_REGISTRY,
     NORMALIZATION_REGISTRY,
+    equivalent_reflectivity_factor_to_normalized,
     normalized_to_rainfall_rate,
     rainfall_flux_to_reflectivity,
     rainfall_rate_to_normalized,
@@ -38,6 +39,7 @@ def test_normalization_registry():
     assert "rainfall_rate" in NORMALIZATION_REGISTRY
     assert NORMALIZATION_REGISTRY["rainfall_rate"] == rainfall_rate_to_normalized
     assert "rainfall_flux" in NORMALIZATION_REGISTRY
+    assert NORMALIZATION_REGISTRY["equivalent_reflectivity_factor"] == equivalent_reflectivity_factor_to_normalized
 
 
 def test_denormalization_registry():
@@ -45,6 +47,16 @@ def test_denormalization_registry():
     assert "rainfall_rate" in DENORMALIZATION_REGISTRY
     assert DENORMALIZATION_REGISTRY["rainfall_rate"] == normalized_to_rainfall_rate
     assert "rainfall_flux" in DENORMALIZATION_REGISTRY
+    assert "equivalent_reflectivity_factor" in DENORMALIZATION_REGISTRY
+
+
+def test_equivalent_reflectivity_factor_to_normalized() -> None:
+    """Verify equivalent_reflectivity_factor is normalized as dBZ reflectivity."""
+    reflectivity = np.array([0.0, 30.0, 60.0])
+
+    normalized = equivalent_reflectivity_factor_to_normalized(reflectivity)
+
+    np.testing.assert_allclose(normalized, np.array([-1.0, 0.0, 1.0]))
 
 
 def test_rainfall_flux_warnings():

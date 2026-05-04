@@ -1,12 +1,15 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 import torch
+import xarray as xr
 
 from mlcast.data.source_data_datasets import (
     SourceDataPrecomputedSamplingDataset,
     SourceDataRandomSamplingDataset,
+    _validate_normalization_units,
 )
 
 
@@ -139,3 +142,26 @@ def test_random_sampling_dataset_forecast_steps_guard(fp_test_dataset: Path) -> 
             input_steps=0,
             forecast_steps=5,
         )
+
+
+def test_equivalent_reflectivity_factor_accepts_dbz_units() -> None:
+    """Test that equivalent_reflectivity_factor accepts dBZ values."""
+    da_var = xr.DataArray(np.array([0.0, 30.0, 60.0]), attrs={"units": "dBZ"})
+
+    _validate_normalization_units(da_var, "equivalent_reflectivity_factor")
+
+
+def test_equivalent_reflectivity_factor_rejects_non_dbz_units() -> None:
+    """Test that equivalent_reflectivity_factor rejects incompatible units."""
+    da_var = xr.DataArray(np.array([1.0]), attrs={"units": "mm6 m-3"})
+
+    with pytest.raises(ValueError, match="equivalent_reflectivity_factor.*dBZ"):
+        _validate_normalization_units(da_var, "equivalent_reflectivity_factor")
+
+
+def test_equivalent_reflectivity_factor_rejects_missing_units() -> None:
+    """Test that equivalent_reflectivity_factor requires units metadata."""
+    da_var = xr.DataArray(np.array([1.0]))
+
+    with pytest.raises(ValueError, match="equivalent_reflectivity_factor.*dBZ"):
+        _validate_normalization_units(da_var, "equivalent_reflectivity_factor")

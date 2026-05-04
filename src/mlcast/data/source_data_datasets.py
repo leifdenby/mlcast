@@ -17,7 +17,22 @@ from beartype import beartype
 from jaxtyping import Float, jaxtyped
 from torch.utils.data import Dataset
 
-from mlcast.data.normalization import NORMALIZATION_REGISTRY
+from mlcast.data.normalization import NORMALIZATION_REGISTRY, NORMALIZATION_UNITS
+
+
+def _validate_normalization_units(da_var: xr.DataArray, standard_name: str) -> None:
+    """Validate units for normalizations that require a specific physical unit."""
+    expected_units = NORMALIZATION_UNITS.get(standard_name)
+    if expected_units is None:
+        return
+
+    units = da_var.attrs.get("units")
+    if units not in expected_units:
+        expected_units_str = ", ".join(sorted(expected_units))
+        raise ValueError(
+            f"CF standard_name '{standard_name}' has units {units!r}; expected one of "
+            f"{expected_units_str}. Refusing to normalize with an incompatible scale."
+        )
 
 
 class DatasetSample(TypedDict, total=False):
@@ -410,6 +425,7 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         channels = []
         for std_name in self.standard_names:
             da_var = self.ds.cf[std_name].isel({self.t_dim: t_slice, self.x_dim: x_slice, self.y_dim: y_slice})
+            _validate_normalization_units(da_var, std_name)
             norm_func = NORMALIZATION_REGISTRY[std_name]
             channels.append(norm_func(da_var.values))
 
@@ -537,6 +553,7 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
         channels = []
         for std_name in self.standard_names:
             da_var = self.ds.cf[std_name].isel({self.t_dim: t_slice, self.x_dim: x_slice, self.y_dim: y_slice})
+            _validate_normalization_units(da_var, std_name)
             norm_func = NORMALIZATION_REGISTRY[std_name]
             channels.append(norm_func(da_var.values))
 
