@@ -297,7 +297,9 @@ class NowcastLightningModule(pl.LightningModule):
         norm_func = NORMALIZATION_REGISTRY[standard_name]
         norm_past = norm_func(past_clean)
 
-        x = torch.from_numpy(norm_past)
+        # torch.from_numpy preserves dtype; normalization math can promote to
+        # float64, but model parameters are float32 by default.
+        x = torch.from_numpy(norm_past.astype(np.float32))
         x = x.to(self.device)
 
         self.eval()

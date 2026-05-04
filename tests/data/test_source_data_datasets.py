@@ -57,6 +57,9 @@ def test_precomputed_sampling_dataset(fp_test_dataset: Path, mock_csv: str) -> N
     assert input_t.shape == (input_steps, 1, 16, 16)
     assert target_t.shape == (forecast_steps, 1, 16, 16)
     assert target_mask_t.shape == (forecast_steps, 1, 16, 16)
+    assert input_t.dtype == torch.float32
+    assert target_t.dtype == torch.float32
+    assert target_mask_t.dtype == torch.float32
     assert isinstance(input_t, torch.Tensor)
     assert isinstance(target_t, torch.Tensor)
     assert isinstance(target_mask_t, torch.Tensor)
@@ -116,6 +119,9 @@ def test_random_sampling_dataset(fp_test_dataset: Path) -> None:
     assert input_t.shape == (input_steps, 1, 32, 32)
     assert target_t.shape == (forecast_steps, 1, 32, 32)
     assert target_mask_t.shape == (forecast_steps, 1, 32, 32)
+    assert input_t.dtype == torch.float32
+    assert target_t.dtype == torch.float32
+    assert target_mask_t.dtype == torch.float32
 
 
 def test_random_sampling_dataset_time_slice(fp_test_dataset: Path) -> None:

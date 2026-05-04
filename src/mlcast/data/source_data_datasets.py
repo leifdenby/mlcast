@@ -276,7 +276,9 @@ class SourceDataDatasetBase(Dataset, ABC):
         if self.return_mask:
             target_mask_t = torch.from_numpy((~np.isnan(data[self.input_steps :])).astype(np.float32))
 
-        data = np.nan_to_num(data, nan=-1.0)
+        # torch.from_numpy preserves dtype; normalization math can promote to
+        # float64, but model parameters are float32 by default.
+        data = np.nan_to_num(data, nan=-1.0).astype(np.float32)
         data_t = torch.from_numpy(data)
 
         input_t = data_t[: self.input_steps]
