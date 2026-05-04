@@ -17,7 +17,7 @@ authors = [
   { name = "Gabriele Franch", email = "franch@fbk.eu" },
   { name = "Leif Denby", email = "lcd@dmi.dk" },
 ]
-requires-python = ">=3.11"
+requires-python = ">=3.11,<3.14"
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
   "Intended Audience :: Science/Research",
