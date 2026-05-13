@@ -109,6 +109,25 @@ def use_anon_s3_dataset(cfg: fdl.Buildable, zarr_path: str, endpoint_url: str) -
     }
 
 
+def use_ratio_splits(cfg: fdl.Config, train: float, val: float) -> None:
+    """Fiddler to set train/val/test split fractions on the data module.
+
+    Sets ``data.splits`` to ratio mode for the ``"time"`` coordinate,
+    assigning the given fractions to ``"train"`` and ``"val"``; ``"test"``
+    receives the remainder.
+
+    Parameters
+    ----------
+    cfg : fdl.Config
+        The Fiddle configuration to mutate.
+    train : float
+        Fraction of the time axis to use for training (e.g. ``0.7``).
+    val : float
+        Fraction of the time axis to use for validation (e.g. ``0.15``).
+    """
+    cfg.data.splits = {"time": {"train": train, "val": val}}
+
+
 def use_mlflow_logger(cfg: fdl.Config) -> None:
     """Fiddler to switch the trainer logger to MLflow.
 

@@ -65,15 +65,24 @@ def test_precomputed_sampling_dataset(fp_test_dataset: Path, mock_csv: str) -> N
     assert isinstance(target_mask_t, torch.Tensor)
 
 
-def test_precomputed_sampling_dataset_time_slice(fp_test_dataset: Path, mock_csv: str) -> None:
-    """Test that time_slice correctly slices the CSV."""
+def test_precomputed_sampling_dataset_time_subset(fp_test_dataset: Path, mock_csv: str) -> None:
+    """Test that subset correctly filters CSV rows by time range.
+
+    The mock CSV has t=[0, 5, 10].  We pass a subset that spans t=0 to t=8
+    (i.e. includes t=0 and t=5 but not t=10), so the dataset should have 2 rows.
+    """
+    ds_zarr = xr.open_zarr(str(fp_test_dataset))
+    time_index = ds_zarr.indexes["time"]
+    # t_start corresponds to zarr index 0, t_end to index 8 (exclusive of index 10).
+    subset = {"time": (str(time_index[0]), str(time_index[8]))}
+
     ds = SourceDataPrecomputedSamplingDataset(
         zarr_path=str(fp_test_dataset),
         csv_path=mock_csv,
         standard_names=["rainfall_flux"],
         input_steps=2,
         forecast_steps=1,
-        time_slice=slice(0, 2),
+        subset=subset,
     )
     assert len(ds) == 2
 
@@ -124,18 +133,26 @@ def test_random_sampling_dataset(fp_test_dataset: Path) -> None:
     assert target_mask_t.dtype == torch.float32
 
 
-def test_random_sampling_dataset_time_slice(fp_test_dataset: Path) -> None:
-    """Test that time_slice correctly slices the Zarr store."""
+def test_random_sampling_dataset_time_subset(fp_test_dataset: Path) -> None:
+    """Test that subset correctly constrains the Zarr time axis.
+
+    The test zarr has 100 timesteps. We pass a subset covering indices 0–49
+    (50 timesteps), so ``max_t`` should equal 50.
+    """
+    ds_zarr = xr.open_zarr(str(fp_test_dataset))
+    time_index = ds_zarr.indexes["time"]
+    subset = {"time": (str(time_index[0]), str(time_index[49]))}
+
     ds = SourceDataRandomSamplingDataset(
         zarr_path=str(fp_test_dataset),
         standard_names=["rainfall_flux"],
         input_steps=3,
         forecast_steps=2,
-        time_slice=slice(0, 50),
+        subset=subset,
         epoch_size=10,
     )
 
-    assert ds.max_t == 50  # Since it was sliced to 50
+    assert ds.max_t == 50  # sliced to timesteps 0–49
     assert len(ds) == 10
 
 

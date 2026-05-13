@@ -15,9 +15,49 @@ import torch
 import xarray as xr
 from beartype import beartype
 from jaxtyping import Float, jaxtyped
+from loguru import logger
 from torch.utils.data import Dataset
 
 from mlcast.data.normalization import NORMALIZATION_REGISTRY, NORMALIZATION_UNITS
+
+
+def _time_range_to_index_slice(
+    zarr_path: str,
+    time_range: tuple[str, str],
+    storage_options: dict[str, Any] | None = None,
+) -> slice:
+    """Convert a pair of ISO datetime strings to a zarr integer index slice.
+
+    Opens the zarr store, locates the integer positions of ``time_range[0]``
+    (inclusive, ``'bfill'``) and ``time_range[1]`` (inclusive, ``'ffill'``) in
+    the time coordinate, and returns a ``slice(start, stop)`` suitable for
+    ``xr.Dataset.isel(time=...)``.
+
+    Parameters
+    ----------
+    zarr_path : str
+        Path to the Zarr dataset.
+    time_range : tuple of str
+        ``(start, end)`` ISO 8601 datetime strings, both inclusive.
+    storage_options : dict or None, optional
+        Options forwarded to ``xr.open_zarr``. Default is ``None``.
+
+    Returns
+    -------
+    slice
+        Integer index slice ``slice(t_start, t_end + 1)`` covering all
+        timesteps in ``[start, end]``.
+    """
+    ds = xr.open_zarr(zarr_path, storage_options=storage_options)
+    time_values = ds.indexes["time"]
+    t_start = time_values.get_indexer([pd.Timestamp(time_range[0])], method="bfill")[0]
+    t_end = time_values.get_indexer([pd.Timestamp(time_range[1])], method="ffill")[0]
+    if t_start < 0 or t_end < 0:
+        raise ValueError(
+            f"time_range {time_range!r} falls entirely outside the zarr time coordinate "
+            f"({time_values[0]} – {time_values[-1]})."
+        )
+    return slice(int(t_start), int(t_end) + 1)
 
 
 def _validate_normalization_units(da_var: xr.DataArray, standard_name: str) -> None:
@@ -196,8 +236,8 @@ class SourceDataDatasetBase(Dataset, ABC):
         """
         if self._ds is None:
             ds = xr.open_zarr(self._zarr_path, storage_options=self.storage_options)
-            if self._time_slice is not None:
-                ds = ds.isel(time=self._time_slice)
+            if self._time_index_slice is not None:
+                ds = ds.isel(time=self._time_index_slice)
             self._ds = ds
         return self._ds
 
@@ -253,7 +293,7 @@ class SourceDataDatasetBase(Dataset, ABC):
 
         return tuple(t.contiguous() for t in tensors)
 
-    def _build_sample(self, data: np.ndarray) -> DatasetSample:
+    def _build_sample(self, data: np.ndarray) -> DatasetSample | None:
         """Convert a raw ``(T, C, H, W)`` numpy array into a :class:`DatasetSample`.
 
         Computes the target mask (before ``nan_to_num``), splits into input /
@@ -268,10 +308,21 @@ class SourceDataDatasetBase(Dataset, ABC):
 
         Returns
         -------
-        sample : DatasetSample
+        sample : DatasetSample | None
             Dictionary with ``'input'`` and ``'target'`` tensors, and
             optionally ``'target_mask'`` if ``self.return_mask`` is ``True``.
+            Returns ``None`` if the spatial dimensions do not match the
+            expected ``(self.h, self.w)`` — e.g. for edge/boundary patches in
+            the zarr store that are smaller than the configured patch size.
         """
+        h, w = data.shape[-2], data.shape[-1]
+        if h != self.h or w != self.w:
+            logger.warning(
+                "Skipping sample with unexpected spatial shape {}x{} (expected {}x{}). "
+                "This is likely an edge/boundary patch in the zarr store.",
+                h, w, self.h, self.w,
+            )
+            return None
         # Capture target mask before NaNs are filled
         if self.return_mask:
             target_mask_t = torch.from_numpy((~np.isnan(data[self.input_steps :])).astype(np.float32))
@@ -321,7 +372,7 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         Path to the Zarr dataset.
     csv_path : str
         Path to the CSV file with columns ``(t, x, y)`` specifying the
-        top-left corner of each crop.
+        top-left corner of each crop.  ``t`` is a zarr integer time index.
     standard_names : list of str
         List of CF standard names of variables to load (e.g., ``["rainfall_rate"]``).
     input_steps : int
@@ -335,14 +386,21 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         If ``True``, use a fixed random seed (42) for reproducibility. Default is ``False``.
     augment : bool, optional
         If ``True``, apply random spatial augmentations (rotation, flips). Default is ``False``.
-    time_slice : slice or None, optional
-        Subset of row indices to use from the CSV for train/val splitting.
+    subset : dict or None, optional
+        Coordinate subsetting specification.  Each key is a coordinate name;
+        only ``"time"`` is currently supported (raises ``NotImplementedError``
+        for any other key).  The ``"time"`` value must be a ``(start, end)``
+        ISO 8601 tuple (both inclusive); only CSV rows whose ``t`` index falls
+        within this range are retained.  When ``None`` or ``{}`` the full
+        dataset is used.  Default is ``None``.
     width : int, optional
         Spatial width of each crop. Default is ``256``.
     height : int, optional
         Spatial height of each crop. Default is ``256``.
     time_depth : int, optional
         Number of timesteps in the sampled window. Default is ``24``.
+    storage_options : dict or None, optional
+        Options forwarded to ``xr.open_zarr``. Default is ``None``.
     """
 
     def __init__(
@@ -355,13 +413,28 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         return_mask: bool = False,
         deterministic: bool = False,
         augment: bool = False,
-        time_slice: slice | None = None,
+        subset: dict[str, Any] | None = None,
         width: int = 256,
         height: int = 256,
         time_depth: int = 24,
         storage_options: dict[str, Any] | None = None,
     ) -> None:
-        self._time_slice: slice | None = None  # required by base ds property before super().__init__ opens store
+        # Validate subset keys and extract time_range before the base class
+        # opens the store via the `ds` property.
+        if subset:
+            for key in subset:
+                if key != "time":
+                    raise NotImplementedError(
+                        f"subset key {key!r} is not supported. "
+                        "Only 'time' subsetting is currently implemented."
+                    )
+        time_range: tuple[str, str] | None = (subset or {}).get("time")
+        if time_range is not None:
+            self._time_index_slice: slice | None = _time_range_to_index_slice(
+                zarr_path, time_range, storage_options
+            )
+        else:
+            self._time_index_slice = None
         super().__init__(
             zarr_path=zarr_path,
             standard_names=standard_names,
@@ -376,13 +449,40 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         )
 
         self.coords = pd.read_csv(csv_path).sort_values("t")
-        if time_slice is not None:
-            self.coords = self.coords.iloc[time_slice].reset_index(drop=True)
+
+        # Filter CSV rows to the time window defined by time_range.
+        if self._time_index_slice is not None:
+            t_start = self._time_index_slice.start
+            t_stop = self._time_index_slice.stop  # exclusive upper bound
+            self.coords = self.coords[
+                (self.coords["t"] >= t_start) & (self.coords["t"] < t_stop)
+            ].reset_index(drop=True)
+
+        # Drop rows whose patch extends beyond the zarr spatial boundary.
+        # Such rows produce undersized tensors that cannot be stacked in a batch.
+        max_x = self.ds.sizes[self.x_dim]
+        max_y = self.ds.sizes[self.y_dim]
+        n_before = len(self.coords)
+        self.coords = self.coords[
+            (self.coords["x"] + self.w <= max_x) &
+            (self.coords["y"] + self.h <= max_y)
+        ].reset_index(drop=True)
+        n_dropped = n_before - len(self.coords)
+        if n_dropped > 0:
+            logger.warning(
+                "Dropped {} / {} CSV rows whose patch extends beyond the zarr "
+                "boundary (zarr: {}x{}, patch: {}x{}).",
+                n_dropped, n_before, max_y, max_x, self.h, self.w,
+            )
 
         self.dt = time_depth
 
         if self.steps > self.dt:
-            print(f"Warning: requested steps ({self.steps}) > sampled time window ({self.dt})")
+            logger.warning(
+                "Requested steps ({}) > sampled time window ({})",
+                self.steps,
+                self.dt,
+            )
 
         # Close the store: metadata has been extracted into plain attributes above.
         # Each DataLoader worker will reopen it via the `ds` property in its own
@@ -459,16 +559,21 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
         If ``True``, use a fixed random seed (42) for reproducibility. Default is ``False``.
     augment : bool, optional
         If ``True``, apply random spatial augmentations (rotation, flips). Default is ``False``.
-    time_slice : slice or None, optional
-        Subset of time indices to use for train/val splitting.
+    subset : dict or None, optional
+        Coordinate subsetting specification.  Each key is a coordinate name;
+        only ``"time"`` is currently supported (raises ``NotImplementedError``
+        for any other key).  The ``"time"`` value must be a ``(start, end)``
+        ISO 8601 tuple (both inclusive); only timesteps within this range are
+        used for random sampling.  When ``None`` or ``{}`` the full time axis
+        is used.  Default is ``None``.
     width : int, optional
         Spatial width of each crop. Default is ``256``.
     height : int, optional
         Spatial height of each crop. Default is ``256``.
     epoch_size : int, optional
         Number of random samples to generate per epoch. Default is ``1000``.
-    **kwargs : Any
-        Ignored extra arguments (e.g. ``csv_path``) to allow drop-in replacement.
+    storage_options : dict or None, optional
+        Options forwarded to ``xr.open_zarr``. Default is ``None``.
     """
 
     def __init__(
@@ -480,14 +585,28 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
         return_mask: bool = False,
         deterministic: bool = False,
         augment: bool = False,
-        time_slice: slice | None = None,
+        subset: dict[str, Any] | None = None,
         width: int = 256,
         height: int = 256,
         epoch_size: int = 1000,
         storage_options: dict[str, Any] | None = None,
-        **kwargs: Any,
     ) -> None:
-        self._time_slice = time_slice  # required by base ds property before super().__init__ opens store
+        # Validate subset keys and extract time_range before the base class
+        # opens the store via the `ds` property.
+        if subset:
+            for key in subset:
+                if key != "time":
+                    raise NotImplementedError(
+                        f"subset key {key!r} is not supported. "
+                        "Only 'time' subsetting is currently implemented."
+                    )
+        time_range: tuple[str, str] | None = (subset or {}).get("time")
+        if time_range is not None:
+            self._time_index_slice: slice | None = _time_range_to_index_slice(
+                zarr_path, time_range, storage_options
+            )
+        else:
+            self._time_index_slice = None
         super().__init__(
             zarr_path=zarr_path,
             standard_names=standard_names,
