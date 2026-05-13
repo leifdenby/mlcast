@@ -133,13 +133,14 @@ class CRPS(LossWithReduction):
         crps = term1 - term2
 
         if self.temporal_lambda > 0:
-            crps = crps.mean(dim=1)
             temporal_diff = preds[:, 1:, :, ...] - preds[:, :-1, :, ...]
+            # temporal_penalty shape: (B, *D) — averaged over ensemble and time-gap dims
             temporal_penalty = torch.abs(temporal_diff).mean(dim=(1, 2))
-            crps = crps + self.temporal_lambda * temporal_penalty
-            crps = crps[:, None, None, ...]
-        else:
-            crps = crps.unsqueeze(2)
+            # Broadcast penalty uniformly across all T steps so the output keeps
+            # the full T dimension and remains compatible with MaskedLoss.
+            crps = crps + self.temporal_lambda * temporal_penalty.unsqueeze(1)
+
+        crps = crps.unsqueeze(2)
 
         return self.apply_reduction(crps)
 
@@ -208,13 +209,14 @@ class AFCRPS(LossWithReduction):
         afcrps = summed / (2.0 * M * (M - 1))
 
         if self.temporal_lambda > 0:
-            afcrps = afcrps.mean(dim=1)
             temporal_diff = preds[:, 1:, :, ...] - preds[:, :-1, :, ...]
+            # temporal_penalty shape: (B, *D) — averaged over ensemble and time-gap dims
             temporal_penalty = torch.abs(temporal_diff).mean(dim=(1, 2))
-            afcrps = afcrps + self.temporal_lambda * temporal_penalty
-            afcrps = afcrps[:, None, None, ...]
-        else:
-            afcrps = afcrps.unsqueeze(2)
+            # Broadcast penalty uniformly across all T steps so the output keeps
+            # the full T dimension and remains compatible with MaskedLoss.
+            afcrps = afcrps + self.temporal_lambda * temporal_penalty.unsqueeze(1)
+
+        afcrps = afcrps.unsqueeze(2)
 
         return self.apply_reduction(afcrps)
 
