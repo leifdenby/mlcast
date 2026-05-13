@@ -78,7 +78,7 @@ def training_experiment() -> Experiment:
         splits={"time": {"train": 0.70, "val": 0.15}},
         batch_size=16,
         num_workers=8,
-        pin_memory=True,
+        pin_memory=False,
     )
 
     network = ConvGruModel(

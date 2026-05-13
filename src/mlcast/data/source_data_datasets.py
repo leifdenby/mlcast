@@ -323,17 +323,19 @@ class SourceDataDatasetBase(Dataset, ABC):
                 h, w, self.h, self.w,
             )
             return None
-        # Capture target mask before NaNs are filled
+        # Capture target mask before NaNs are filled.
+        # torch.tensor() always allocates fresh PyTorch-owned memory and copies
+        # the data — unlike torch.from_numpy() it never shares the numpy buffer,
+        # so the resulting storage is always resizable by PyTorch's DataLoader
+        # collate (shared-memory IPC path in worker processes).
         if self.return_mask:
-            target_mask_t = torch.from_numpy((~np.isnan(data[self.input_steps :])).astype(np.float32))
+            target_mask_t = torch.tensor(
+                (~np.isnan(data[self.input_steps :])).astype(np.float32)
+            )
 
-        # torch.from_numpy preserves dtype; normalization math can promote to
-        # float64, but model parameters are float32 by default.
         data = np.nan_to_num(data, nan=-1.0).astype(np.float32)
-        data_t = torch.from_numpy(data)
-
-        input_t = data_t[: self.input_steps]
-        target_t = data_t[self.input_steps :]
+        input_t = torch.tensor(data[: self.input_steps])
+        target_t = torch.tensor(data[self.input_steps :])
 
         if self.augment:
             tensors = (input_t, target_t, target_mask_t) if self.return_mask else (input_t, target_t)
@@ -527,11 +529,19 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         channels = []
         for std_name in self.standard_names:
             da_var = self.ds.cf[std_name].isel({self.t_dim: t_slice, self.x_dim: x_slice, self.y_dim: y_slice})
+            # .load() forces xarray to materialise the slice into a plain numpy
+            # array in memory, fully detached from zarr's chunk cache. Without
+            # this, .values can return a non-owning buffer that PyTorch's
+            # DataLoader collate cannot resize.
+            da_var.load()
             _validate_normalization_units(da_var, std_name)
             norm_func = NORMALIZATION_REGISTRY[std_name]
             channels.append(norm_func(da_var.values))
 
-        data = np.swapaxes(np.stack(channels, axis=0), 0, 1)
+        # np.swapaxes returns a view with transposed strides; wrap in
+        # np.ascontiguousarray to guarantee a C-contiguous owning array before
+        # _build_sample processes it.
+        data = np.ascontiguousarray(np.swapaxes(np.stack(channels, axis=0), 0, 1), dtype=np.float32)
         return self._build_sample(data)
 
 
@@ -674,9 +684,17 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
         channels = []
         for std_name in self.standard_names:
             da_var = self.ds.cf[std_name].isel({self.t_dim: t_slice, self.x_dim: x_slice, self.y_dim: y_slice})
+            # .load() forces xarray to materialise the slice into a plain numpy
+            # array in memory, fully detached from zarr's chunk cache. Without
+            # this, .values can return a non-owning buffer that PyTorch's
+            # DataLoader collate cannot resize.
+            da_var.load()
             _validate_normalization_units(da_var, std_name)
             norm_func = NORMALIZATION_REGISTRY[std_name]
             channels.append(norm_func(da_var.values))
 
-        data = np.swapaxes(np.stack(channels, axis=0), 0, 1)
+        # np.swapaxes returns a view with transposed strides; wrap in
+        # np.ascontiguousarray to guarantee a C-contiguous owning array before
+        # _build_sample processes it.
+        data = np.ascontiguousarray(np.swapaxes(np.stack(channels, axis=0), 0, 1), dtype=np.float32)
         return self._build_sample(data)

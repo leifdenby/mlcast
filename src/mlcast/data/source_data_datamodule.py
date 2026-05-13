@@ -9,9 +9,45 @@ from typing import Any
 
 import fiddle as fdl
 import pytorch_lightning as pl
+import torch
 import xarray as xr
 from loguru import logger
 from torch.utils.data import DataLoader, Dataset
+
+
+def _safe_collate(batch: list) -> Any:
+    """Collate a list of samples into a batch without shared-memory pre-allocation.
+
+    PyTorch's default collate, when called inside a DataLoader worker process,
+    pre-allocates a shared-memory buffer via ``UntypedStorage._new_using_fd_cpu``
+    and then calls ``resize_()`` on it.  On some Linux configurations (e.g.
+    CINECA Leonardo with PyTorch 2.11+cu128) that ``resize_()`` raises
+    ``RuntimeError: Trying to resize storage that is not resizable``.
+
+    This collate avoids that code path entirely: for tensors it calls
+    ``torch.stack`` directly (no shared-memory pre-allocation); for everything
+    else it delegates to the standard collate helpers.
+
+    ``None`` entries (produced by ``_build_sample`` for malformed/edge patches)
+    are filtered out before stacking.  If the entire batch is ``None`` the
+    function returns ``None`` and the caller is responsible for skipping it.
+    """
+    # Filter out None samples (e.g. edge patches with wrong spatial size).
+    batch = [s for s in batch if s is not None]
+    if not batch:
+        return None
+
+    elem = batch[0]
+    if isinstance(elem, torch.Tensor):
+        return torch.stack(batch, dim=0)
+    if isinstance(elem, dict):
+        return {key: _safe_collate([d[key] for d in batch]) for key in elem}
+    if isinstance(elem, (list, tuple)):
+        transposed = list(zip(*batch))
+        return type(elem)(_safe_collate(samples) for samples in transposed)
+    # scalars, strings, numpy arrays — fall back to default behaviour
+    from torch.utils.data.dataloader import default_collate
+    return default_collate(batch)
 
 
 _SPLIT_NAMES = frozenset({"train", "val", "test"})
@@ -146,6 +182,12 @@ class SourceDataDataModule(pl.LightningDataModule):
               }
 
         Default is ``{"time": {"train": 0.70, "val": 0.15}}``.
+    use_safe_collate : bool, optional
+        If ``True`` (default), use :func:`_safe_collate` instead of PyTorch's
+        default collate function.  This avoids a ``RuntimeError`` on CINECA
+        Leonardo with PyTorch 2.11+cu128 where ``resize_()`` on a
+        shared-memory storage raises ``Trying to resize storage that is not
+        resizable``.  Set to ``False`` to restore default collate behaviour.
     **dataloader_kwargs : Any
         Additional keyword arguments forwarded to ``DataLoader`` (e.g.,
         ``batch_size``, ``num_workers``, ``pin_memory``).
@@ -155,11 +197,13 @@ class SourceDataDataModule(pl.LightningDataModule):
         self,
         dataset_factory: Callable[..., Dataset],
         splits: dict[str, dict[str, Any]] | None = None,
+        use_safe_collate: bool = True,
         **dataloader_kwargs: Any,
     ) -> None:
         super().__init__()
         self.dataset_factory = dataset_factory
         self.splits = splits if splits is not None else {"time": {"train": 0.70, "val": 0.15}}
+        self.use_safe_collate = use_safe_collate
         self.dataloader_kwargs = dataloader_kwargs
         _validate_splits(self.splits)
 
@@ -264,15 +308,24 @@ class SourceDataDataModule(pl.LightningDataModule):
 
     def train_dataloader(self) -> DataLoader:
         """Return the training DataLoader."""
-        return DataLoader(self.train_dataset, shuffle=True, **self.dataloader_kwargs)
+        kwargs = dict(self.dataloader_kwargs)
+        if self.use_safe_collate:
+            kwargs.setdefault("collate_fn", _safe_collate)
+        return DataLoader(self.train_dataset, shuffle=True, **kwargs)
 
     def val_dataloader(self) -> DataLoader:
         """Return the validation DataLoader."""
-        return DataLoader(self.val_dataset, shuffle=False, **self.dataloader_kwargs)
+        kwargs = dict(self.dataloader_kwargs)
+        if self.use_safe_collate:
+            kwargs.setdefault("collate_fn", _safe_collate)
+        return DataLoader(self.val_dataset, shuffle=False, **kwargs)
 
     def test_dataloader(self) -> DataLoader:
         """Return the test DataLoader."""
-        return DataLoader(self.test_dataset, shuffle=False, **self.dataloader_kwargs)
+        kwargs = dict(self.dataloader_kwargs)
+        if self.use_safe_collate:
+            kwargs.setdefault("collate_fn", _safe_collate)
+        return DataLoader(self.test_dataset, shuffle=False, **kwargs)
 
 
 def count_split_samples(cfg: fdl.Config) -> dict[str, Any]:
