@@ -320,7 +320,10 @@ class SourceDataDatasetBase(Dataset, ABC):
             logger.warning(
                 "Skipping sample with unexpected spatial shape {}x{} (expected {}x{}). "
                 "This is likely an edge/boundary patch in the zarr store.",
-                h, w, self.h, self.w,
+                h,
+                w,
+                self.h,
+                self.w,
             )
             return None
         # Capture target mask before NaNs are filled.
@@ -329,9 +332,7 @@ class SourceDataDatasetBase(Dataset, ABC):
         # so the resulting storage is always resizable by PyTorch's DataLoader
         # collate (shared-memory IPC path in worker processes).
         if self.return_mask:
-            target_mask_t = torch.tensor(
-                (~np.isnan(data[self.input_steps :])).astype(np.float32)
-            )
+            target_mask_t = torch.tensor((~np.isnan(data[self.input_steps :])).astype(np.float32))
 
         data = np.nan_to_num(data, nan=-1.0).astype(np.float32)
         input_t = torch.tensor(data[: self.input_steps])
@@ -427,14 +428,11 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
             for key in subset:
                 if key != "time":
                     raise NotImplementedError(
-                        f"subset key {key!r} is not supported. "
-                        "Only 'time' subsetting is currently implemented."
+                        f"subset key {key!r} is not supported. " "Only 'time' subsetting is currently implemented."
                     )
         time_range: tuple[str, str] | None = (subset or {}).get("time")
         if time_range is not None:
-            self._time_index_slice: slice | None = _time_range_to_index_slice(
-                zarr_path, time_range, storage_options
-            )
+            self._time_index_slice: slice | None = _time_range_to_index_slice(zarr_path, time_range, storage_options)
         else:
             self._time_index_slice = None
         super().__init__(
@@ -456,9 +454,9 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         if self._time_index_slice is not None:
             t_start = self._time_index_slice.start
             t_stop = self._time_index_slice.stop  # exclusive upper bound
-            self.coords = self.coords[
-                (self.coords["t"] >= t_start) & (self.coords["t"] < t_stop)
-            ].reset_index(drop=True)
+            self.coords = self.coords[(self.coords["t"] >= t_start) & (self.coords["t"] < t_stop)].reset_index(
+                drop=True
+            )
 
         # Drop rows whose patch extends beyond the zarr spatial boundary.
         # Such rows produce undersized tensors that cannot be stacked in a batch.
@@ -466,15 +464,18 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         max_y = self.ds.sizes[self.y_dim]
         n_before = len(self.coords)
         self.coords = self.coords[
-            (self.coords["x"] + self.w <= max_x) &
-            (self.coords["y"] + self.h <= max_y)
+            (self.coords["x"] + self.w <= max_x) & (self.coords["y"] + self.h <= max_y)
         ].reset_index(drop=True)
         n_dropped = n_before - len(self.coords)
         if n_dropped > 0:
             logger.warning(
-                "Dropped {} / {} CSV rows whose patch extends beyond the zarr "
-                "boundary (zarr: {}x{}, patch: {}x{}).",
-                n_dropped, n_before, max_y, max_x, self.h, self.w,
+                "Dropped {} / {} CSV rows whose patch extends beyond the zarr " "boundary (zarr: {}x{}, patch: {}x{}).",
+                n_dropped,
+                n_before,
+                max_y,
+                max_x,
+                self.h,
+                self.w,
             )
 
         self.dt = time_depth
@@ -607,14 +608,11 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
             for key in subset:
                 if key != "time":
                     raise NotImplementedError(
-                        f"subset key {key!r} is not supported. "
-                        "Only 'time' subsetting is currently implemented."
+                        f"subset key {key!r} is not supported. " "Only 'time' subsetting is currently implemented."
                     )
         time_range: tuple[str, str] | None = (subset or {}).get("time")
         if time_range is not None:
-            self._time_index_slice: slice | None = _time_range_to_index_slice(
-                zarr_path, time_range, storage_options
-            )
+            self._time_index_slice: slice | None = _time_range_to_index_slice(zarr_path, time_range, storage_options)
         else:
             self._time_index_slice = None
         super().__init__(

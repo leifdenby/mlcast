@@ -56,13 +56,15 @@ def test_validate_splits_ratio_mode() -> None:
 
 def test_validate_splits_datetime_mode() -> None:
     """Valid datetime-mode splits should not raise."""
-    _validate_splits({
-        "time": {
-            "train": ("2016-01-01", "2021-12-31"),
-            "val": ("2022-01-01", "2023-12-31"),
-            "test": None,
+    _validate_splits(
+        {
+            "time": {
+                "train": ("2016-01-01", "2021-12-31"),
+                "val": ("2022-01-01", "2023-12-31"),
+                "test": None,
+            }
         }
-    })
+    )
 
 
 def test_validate_splits_missing_train() -> None:
@@ -82,12 +84,14 @@ def test_validate_splits_mixed_mode() -> None:
 
 def test_validate_splits_datetime_missing_test() -> None:
     with pytest.raises(ValueError, match="must contain 'test'"):
-        _validate_splits({
-            "time": {
-                "train": ("2016-01-01", "2021-12-31"),
-                "val": ("2022-01-01", "2023-12-31"),
+        _validate_splits(
+            {
+                "time": {
+                    "train": ("2016-01-01", "2021-12-31"),
+                    "val": ("2022-01-01", "2023-12-31"),
+                }
             }
-        })
+        )
 
 
 def test_validate_splits_unknown_coord() -> None:
@@ -124,11 +128,11 @@ def test_data_module_ratio_splits() -> None:
     test_start, test_end = dm.test_dataset.subset["time"]
 
     assert train_start == str(time_index[0])
-    assert train_end == str(time_index[49])    # slice(0, 50) → index 49 inclusive
+    assert train_end == str(time_index[49])  # slice(0, 50) → index 49 inclusive
     assert val_start == str(time_index[50])
-    assert val_end == str(time_index[69])      # slice(50, 70) → index 69 inclusive
+    assert val_end == str(time_index[69])  # slice(50, 70) → index 69 inclusive
     assert test_start == str(time_index[70])
-    assert test_end == str(time_index[99])     # slice(70, 100) → index 99 inclusive
+    assert test_end == str(time_index[99])  # slice(70, 100) → index 99 inclusive
 
     assert dm.val_dataset.augment is False
     assert dm.test_dataset.augment is False

@@ -42,11 +42,12 @@ def _safe_collate(batch: list) -> Any:
         return torch.stack(batch, dim=0)
     if isinstance(elem, dict):
         return {key: _safe_collate([d[key] for d in batch]) for key in elem}
-    if isinstance(elem, (list, tuple)):
-        transposed = list(zip(*batch))
+    if isinstance(elem, list | tuple):
+        transposed = list(zip(*batch, strict=False))
         return type(elem)(_safe_collate(samples) for samples in transposed)
     # scalars, strings, numpy arrays — fall back to default behaviour
     from torch.utils.data.dataloader import default_collate
+
     return default_collate(batch)
 
 
@@ -84,8 +85,7 @@ def _validate_splits(splits: dict[str, dict[str, Any]]) -> None:
     unknown_coords = set(splits) - _SUPPORTED_COORDS
     if unknown_coords:
         raise ValueError(
-            f"Unknown coordinate(s) in splits: {sorted(unknown_coords)}. "
-            f"Supported: {sorted(_SUPPORTED_COORDS)}."
+            f"Unknown coordinate(s) in splits: {sorted(unknown_coords)}. " f"Supported: {sorted(_SUPPORTED_COORDS)}."
         )
 
     for coord, coord_splits in splits.items():
@@ -98,9 +98,7 @@ def _validate_splits(splits: dict[str, dict[str, Any]]) -> None:
 
         for required in ("train", "val"):
             if required not in coord_splits:
-                raise ValueError(
-                    f"splits[{coord!r}] must contain '{required}'."
-                )
+                raise ValueError(f"splits[{coord!r}] must contain '{required}'.")
 
         train_is_tuple = isinstance(coord_splits["train"], tuple)
         val_is_tuple = isinstance(coord_splits["val"], tuple)
@@ -120,9 +118,7 @@ def _validate_splits(splits: dict[str, dict[str, Any]]) -> None:
             if isinstance(test_val, float):
                 ratio_sum += test_val
             if ratio_sum > 1.0 + 1e-9:
-                raise ValueError(
-                    f"Split ratios in splits[{coord!r}] sum to {ratio_sum:.4f}, which exceeds 1.0."
-                )
+                raise ValueError(f"Split ratios in splits[{coord!r}] sum to {ratio_sum:.4f}, which exceeds 1.0.")
         else:
             # Datetime mode
             if "test" not in coord_splits:
@@ -243,13 +239,11 @@ class SourceDataDataModule(pl.LightningDataModule):
             else:
                 # Ratio mode: open the zarr to resolve ratios to coordinate values.
                 zarr_path = (
-                    getattr(self.dataset_factory, "zarr_path", None)
-                    or self.dataset_factory.keywords["zarr_path"]
+                    getattr(self.dataset_factory, "zarr_path", None) or self.dataset_factory.keywords["zarr_path"]
                 )
-                storage_options = (
-                    getattr(self.dataset_factory, "storage_options", None)
-                    or self.dataset_factory.keywords.get("storage_options")
-                )
+                storage_options = getattr(
+                    self.dataset_factory, "storage_options", None
+                ) or self.dataset_factory.keywords.get("storage_options")
                 ds = xr.open_zarr(zarr_path, storage_options=storage_options)
                 coord_vals = ds.indexes[coord]
                 n = len(coord_vals)
@@ -257,31 +251,32 @@ class SourceDataDataModule(pl.LightningDataModule):
                 train_ratio = coord_splits["train"]
                 val_ratio = coord_splits["val"]
                 test_val = coord_splits.get("test")
-                test_ratio = (
-                    test_val if isinstance(test_val, float)
-                    else 1.0 - train_ratio - val_ratio
-                )
+                test_ratio = test_val if isinstance(test_val, float) else 1.0 - train_ratio - val_ratio
 
                 total = train_ratio + val_ratio + (test_ratio if test_ratio > 0 else 0)
                 if abs(total - 1.0) > 1e-6:
                     logger.warning(
                         "splits[{!r}] ratios sum to {:.4f} (expected 1.0). "
                         "Coverage may not span the full coordinate extent.",
-                        coord, total,
+                        coord,
+                        total,
                     )
 
                 logger.debug(
                     "Ratio mode splits[{!r}] — train: {:.4f}, val: {:.4f}, test: {:.4f}.",
-                    coord, train_ratio, val_ratio, test_ratio,
+                    coord,
+                    train_ratio,
+                    val_ratio,
+                    test_ratio,
                 )
 
                 train_end = int(n * train_ratio)
                 val_end = train_end + int(n * val_ratio)
 
                 coord_values_per_split = {
-                    "train": (str(coord_vals[0]),         str(coord_vals[train_end - 1])),
-                    "val":   (str(coord_vals[train_end]), str(coord_vals[val_end - 1])),
-                    "test":  (str(coord_vals[val_end]),   str(coord_vals[n - 1])),
+                    "train": (str(coord_vals[0]), str(coord_vals[train_end - 1])),
+                    "val": (str(coord_vals[train_end]), str(coord_vals[val_end - 1])),
+                    "test": (str(coord_vals[val_end]), str(coord_vals[n - 1])),
                 }
 
             for split_name, split_val in coord_values_per_split.items():
@@ -304,6 +299,18 @@ class SourceDataDataModule(pl.LightningDataModule):
                     self,
                     f"{split}_dataset",
                     self.dataset_factory(subset=subset, augment=augment_flags[split]),
+                )
+
+        logger.info("{}.setup() complete, containing:", self.__class__.__name__)
+        for split in ("train", "val", "test"):
+            dataset = getattr(self, f"{split}_dataset", None)
+            if dataset is not None:
+                subset = subset_per_split[split]
+                logger.info(
+                    "  {:5s}: {:>6d} samples, subset={}",
+                    split,
+                    len(dataset),
+                    subset,
                 )
 
     def train_dataloader(self) -> DataLoader:
@@ -363,13 +370,11 @@ def count_split_samples(cfg: fdl.Config) -> dict[str, Any]:
 
     # Open zarr to read the full time coordinate before setup() filters it.
     zarr_path = (
-        getattr(data_module.dataset_factory, "zarr_path", None)
-        or data_module.dataset_factory.keywords["zarr_path"]
+        getattr(data_module.dataset_factory, "zarr_path", None) or data_module.dataset_factory.keywords["zarr_path"]
     )
-    storage_options = (
-        getattr(data_module.dataset_factory, "storage_options", None)
-        or data_module.dataset_factory.keywords.get("storage_options")
-    )
+    storage_options = getattr(
+        data_module.dataset_factory, "storage_options", None
+    ) or data_module.dataset_factory.keywords.get("storage_options")
     ds = xr.open_zarr(zarr_path, storage_options=storage_options)
     time_values = ds.indexes["time"]
 
