@@ -57,6 +57,14 @@ def _time_range_to_index_slice(
             f"time_range {time_range!r} falls entirely outside the zarr time coordinate "
             f"({time_values[0]} – {time_values[-1]})."
         )
+    logger.debug(
+        "Converted time_range {} to index slice [{}:{}] ({} to {})",
+        time_range,
+        t_start,
+        t_end,
+        time_values[t_start],
+        time_values[t_end],
+    )
     return slice(int(t_start), int(t_end) + 1)
 
 
@@ -449,6 +457,8 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
         )
 
         self.coords = pd.read_csv(csv_path).sort_values("t")
+        full_t_min = int(self.coords["t"].min())
+        full_t_max = int(self.coords["t"].max())
 
         # Filter CSV rows to the time window defined by time_range.
         if self._time_index_slice is not None:
@@ -476,6 +486,16 @@ class SourceDataPrecomputedSamplingDataset(SourceDataDatasetBase):
                 max_x,
                 self.h,
                 self.w,
+            )
+
+        if len(self.coords) == 0:
+            subset_desc = f"time={time_range}" if time_range else "none"
+            logger.warning(
+                "Zero samples remain after subsetting. "
+                "Full t range in CSV: [{}, {}]. Selected subset: {}.",
+                full_t_min,
+                full_t_max,
+                subset_desc,
             )
 
         self.dt = time_depth
