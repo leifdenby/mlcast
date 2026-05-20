@@ -32,15 +32,15 @@
 
 2. Autoencoder model architecture
 - Autoencoder model split:
-  - [ ] `src/mlcast/models/autoencoder/encoder.py` for `Encoder` and `EncoderBlock`.
-  - [ ] `src/mlcast/models/autoencoder/decoder.py` for `Decoder` and `DecoderBlock`.
-  - [ ] `src/mlcast/models/autoencoder/net.py` for `AutoencoderNet`.
-- [ ] Use `input_steps` for the stage-1 reconstruction window length; do not introduce names like `autoenc_time_ratio`.
+  - [x] `src/mlcast/models/autoencoder/encoder.py` for `Encoder` and `EncoderBlock`.
+  - [x] `src/mlcast/models/autoencoder/decoder.py` for `Decoder` and `DecoderBlock`.
+  - [x] `src/mlcast/models/autoencoder/net.py` for `AutoencoderNet`.
+- [x] Use `input_steps` for the stage-1 reconstruction window length; do not introduce names like `autoenc_time_ratio`.
 - Autoencoder validation and tests:
-  - [ ] encoder output shape.
-  - [ ] decoder output shape.
-  - [ ] autoencoder reconstruction forward pass.
-  - [ ] autoencoder improves reconstruction loss on a small generated dataset after a few training steps.
+  - [x] encoder output shape.
+  - [x] decoder output shape.
+  - [x] autoencoder reconstruction forward pass.
+  - [x] autoencoder improves reconstruction loss on a small generated dataset after a few training steps.
 
 3. Forecasting model contract
 - [ ] Standardize all forecasting models on init-time `input_steps`, `forecast_steps`, and `ensemble_size`.
