@@ -12,83 +12,93 @@
 <!-- 2 -->
 <g id="node1" class="node">
 <title>2</title>
-<polygon fill="#fff8dc" stroke="transparent" points="0,-94 0,-113 132,-113 132,-94 0,-94"/>
-<polygon fill="none" stroke="black" points="0,-94 0,-113 132,-113 132,-94 0,-94"/>
-<text text-anchor="start" x="10.5" y="-102" font-family="Courier,monospace" font-size="8.00">Config:</text>
-<text text-anchor="start" x="42.5" y="-102" font-family="Courier,monospace" font-size="10.00"> ConvGruModel</text>
-<polygon fill="#eeeeee" stroke="transparent" points="0,-75 0,-94 93,-94 93,-75 0,-75"/>
-<polygon fill="none" stroke="black" points="0,-75 0,-94 93,-94 93,-75 0,-75"/>
-<text text-anchor="start" x="4" y="-82" font-family="Courier,monospace" font-size="10.00">input_channels</text>
-<polygon fill="none" stroke="black" points="93,-75 93,-94 132,-94 132,-75 93,-75"/>
-<text text-anchor="start" x="97" y="-82" font-family="Courier,monospace" font-size="10.00">1</text>
-<polygon fill="#eeeeee" stroke="transparent" points="0,-56 0,-75 93,-75 93,-56 0,-56"/>
-<polygon fill="none" stroke="black" points="0,-56 0,-75 93,-75 93,-56 0,-56"/>
-<text text-anchor="start" x="28" y="-63" font-family="Courier,monospace" font-size="10.00">num_blocks</text>
-<polygon fill="none" stroke="black" points="93,-56 93,-75 132,-75 132,-56 93,-56"/>
-<text text-anchor="start" x="97" y="-63" font-family="Courier,monospace" font-size="10.00">5</text>
-<polygon fill="#eeeeee" stroke="transparent" points="0,-37 0,-56 93,-56 93,-37 0,-37"/>
-<polygon fill="none" stroke="black" points="0,-37 0,-56 93,-56 93,-37 0,-37"/>
-<text text-anchor="start" x="10" y="-44" font-family="Courier,monospace" font-size="10.00">noisy_decoder</text>
-<polygon fill="none" stroke="black" points="93,-37 93,-56 132,-56 132,-37 93,-37"/>
-<text text-anchor="start" x="97" y="-44" font-family="Courier,monospace" font-size="10.00">False</text>
+<polygon fill="#fff8dc" stroke="transparent" points="0,-122 0,-141 132,-141 132,-122 0,-122"/>
+<polygon fill="none" stroke="black" points="0,-122 0,-141 132,-141 132,-122 0,-122"/>
+<text text-anchor="start" x="10.5" y="-130" font-family="Courier,monospace" font-size="8.00">Config:</text>
+<text text-anchor="start" x="42.5" y="-130" font-family="Courier,monospace" font-size="10.00"> ConvGruModel</text>
+<polygon fill="#eeeeee" stroke="transparent" points="0,-103 0,-122 93,-122 93,-103 0,-103"/>
+<polygon fill="none" stroke="black" points="0,-103 0,-122 93,-122 93,-103 0,-103"/>
+<text text-anchor="start" x="22" y="-110" font-family="Courier,monospace" font-size="10.00">input_steps</text>
+<polygon fill="none" stroke="black" points="93,-103 93,-122 132,-122 132,-103 93,-103"/>
+<text text-anchor="start" x="97" y="-110" font-family="Courier,monospace" font-size="10.00">6</text>
+<polygon fill="#eeeeee" stroke="transparent" points="0,-84 0,-103 93,-103 93,-84 0,-84"/>
+<polygon fill="none" stroke="black" points="0,-84 0,-103 93,-103 93,-84 0,-84"/>
+<text text-anchor="start" x="4" y="-91" font-family="Courier,monospace" font-size="10.00">forecast_steps</text>
+<polygon fill="none" stroke="black" points="93,-84 93,-103 132,-103 132,-84 93,-84"/>
+<text text-anchor="start" x="97" y="-91" font-family="Courier,monospace" font-size="10.00">12</text>
+<polygon fill="#eeeeee" stroke="transparent" points="0,-65 0,-84 93,-84 93,-65 0,-65"/>
+<polygon fill="none" stroke="black" points="0,-65 0,-84 93,-84 93,-65 0,-65"/>
+<text text-anchor="start" x="10" y="-72" font-family="Courier,monospace" font-size="10.00">ensemble_size</text>
+<polygon fill="none" stroke="black" points="93,-65 93,-84 132,-84 132,-65 93,-65"/>
+<text text-anchor="start" x="97" y="-72" font-family="Courier,monospace" font-size="10.00">2</text>
+<polygon fill="#eeeeee" stroke="transparent" points="0,-46 0,-65 93,-65 93,-46 0,-46"/>
+<polygon fill="none" stroke="black" points="0,-46 0,-65 93,-65 93,-46 0,-46"/>
+<text text-anchor="start" x="4" y="-53" font-family="Courier,monospace" font-size="10.00">input_channels</text>
+<polygon fill="none" stroke="black" points="93,-46 93,-65 132,-65 132,-46 93,-46"/>
+<text text-anchor="start" x="97" y="-53" font-family="Courier,monospace" font-size="10.00">1</text>
+<polygon fill="#eeeeee" stroke="transparent" points="0,-27 0,-46 93,-46 93,-27 0,-27"/>
+<polygon fill="none" stroke="black" points="0,-27 0,-46 93,-46 93,-27 0,-27"/>
+<text text-anchor="start" x="28" y="-34" font-family="Courier,monospace" font-size="10.00">num_blocks</text>
+<polygon fill="none" stroke="black" points="93,-27 93,-46 132,-46 132,-27 93,-27"/>
+<text text-anchor="start" x="97" y="-34" font-family="Courier,monospace" font-size="10.00">5</text>
+<polygon fill="#eeeeee" stroke="transparent" points="0,-8 0,-27 93,-27 93,-8 0,-8"/>
+<polygon fill="none" stroke="black" points="0,-8 0,-27 93,-27 93,-8 0,-8"/>
+<text text-anchor="start" x="10" y="-15" font-family="Courier,monospace" font-size="10.00">noisy_decoder</text>
+<polygon fill="none" stroke="black" points="93,-8 93,-27 132,-27 132,-8 93,-8"/>
+<text text-anchor="start" x="97" y="-15" font-family="Courier,monospace" font-size="10.00">False</text>
 </g>
 <!-- 1 -->
 <g id="node2" class="node">
 <title>1</title>
-<polygon fill="#90ee90" stroke="transparent" points="56,-387.5 56,-406.5 295,-406.5 295,-387.5 56,-387.5"/>
-<polygon fill="none" stroke="black" points="56,-387.5 56,-406.5 295,-406.5 295,-387.5 56,-387.5"/>
-<text text-anchor="start" x="90" y="-395.5" font-family="Courier,monospace" font-size="8.00">Config:</text>
-<text text-anchor="start" x="122" y="-395.5" font-family="Courier,monospace" font-size="10.00"> NowcastLightningModule</text>
-<polygon fill="#eeeeee" stroke="transparent" points="56,-368.5 56,-387.5 143,-387.5 143,-368.5 56,-368.5"/>
-<polygon fill="none" stroke="black" points="56,-368.5 56,-387.5 143,-387.5 143,-368.5 56,-368.5"/>
-<text text-anchor="start" x="96" y="-375.5" font-family="Courier,monospace" font-size="10.00">network</text>
-<polygon fill="none" stroke="black" points="143,-368.5 143,-387.5 295,-387.5 295,-368.5 143,-368.5"/>
-<polygon fill="#fff8dc" stroke="transparent" points="147,-372.5 147,-383.5 291,-383.5 291,-372.5 147,-372.5"/>
-<polygon fill="none" stroke="black" points="147,-372.5 147,-383.5 291,-383.5 291,-372.5 147,-372.5"/>
-<polygon fill="#eeeeee" stroke="transparent" points="56,-349.5 56,-368.5 143,-368.5 143,-349.5 56,-349.5"/>
-<polygon fill="none" stroke="black" points="56,-349.5 56,-368.5 143,-368.5 143,-349.5 56,-349.5"/>
-<text text-anchor="start" x="60" y="-356.5" font-family="Courier,monospace" font-size="10.00">ensemble_size</text>
-<polygon fill="none" stroke="black" points="143,-349.5 143,-368.5 295,-368.5 295,-349.5 143,-349.5"/>
-<text text-anchor="start" x="147" y="-356.5" font-family="Courier,monospace" font-size="10.00">2</text>
-<polygon fill="#eeeeee" stroke="transparent" points="56,-330.5 56,-349.5 143,-349.5 143,-330.5 56,-330.5"/>
-<polygon fill="none" stroke="black" points="56,-330.5 56,-349.5 143,-349.5 143,-330.5 56,-330.5"/>
-<text text-anchor="start" x="78" y="-337.5" font-family="Courier,monospace" font-size="10.00">loss_class</text>
-<polygon fill="none" stroke="black" points="143,-330.5 143,-349.5 295,-349.5 295,-330.5 143,-330.5"/>
-<text text-anchor="start" x="147" y="-337.5" font-family="Courier,monospace" font-size="10.00">&#39;crps&#39;</text>
-<polygon fill="#eeeeee" stroke="transparent" points="56,-284.5 56,-330.5 143,-330.5 143,-284.5 56,-284.5"/>
-<polygon fill="none" stroke="black" points="56,-284.5 56,-330.5 143,-330.5 143,-284.5 56,-284.5"/>
-<text text-anchor="start" x="72" y="-305" font-family="Courier,monospace" font-size="10.00">loss_params</text>
-<polygon fill="none" stroke="black" points="143,-284.5 143,-330.5 295,-330.5 295,-284.5 143,-284.5"/>
-<polygon fill="#eeeeee" stroke="transparent" points="147,-307.5 147,-326.5 291,-326.5 291,-307.5 147,-307.5"/>
-<polygon fill="none" stroke="black" points="147,-307.5 147,-326.5 291,-326.5 291,-307.5 147,-307.5"/>
-<text text-anchor="start" x="206.5" y="-314.5" font-family="Courier,monospace" font-size="10.00">dict</text>
-<polygon fill="#eeeeee" stroke="transparent" points="147,-288.5 147,-307.5 258,-307.5 258,-288.5 147,-288.5"/>
-<polygon fill="none" stroke="black" points="147,-288.5 147,-307.5 258,-307.5 258,-288.5 147,-288.5"/>
-<text text-anchor="start" x="151" y="-295.5" font-family="Courier,monospace" font-size="10.00">&#39;temporal_lambda&#39;</text>
-<polygon fill="none" stroke="black" points="258,-288.5 258,-307.5 291,-307.5 291,-288.5 258,-288.5"/>
-<text text-anchor="start" x="262" y="-295.5" font-family="Courier,monospace" font-size="10.00">0.01</text>
-<polygon fill="#eeeeee" stroke="transparent" points="56,-265.5 56,-284.5 143,-284.5 143,-265.5 56,-265.5"/>
-<polygon fill="none" stroke="black" points="56,-265.5 56,-284.5 143,-284.5 143,-265.5 56,-265.5"/>
-<text text-anchor="start" x="72" y="-272.5" font-family="Courier,monospace" font-size="10.00">masked_loss</text>
-<polygon fill="none" stroke="black" points="143,-265.5 143,-284.5 295,-284.5 295,-265.5 143,-265.5"/>
-<text text-anchor="start" x="147" y="-272.5" font-family="Courier,monospace" font-size="10.00">True</text>
-<polygon fill="#eeeeee" stroke="transparent" points="56,-246.5 56,-265.5 143,-265.5 143,-246.5 56,-246.5"/>
-<polygon fill="none" stroke="black" points="56,-246.5 56,-265.5 143,-265.5 143,-246.5 56,-246.5"/>
-<text text-anchor="start" x="84" y="-253.5" font-family="Courier,monospace" font-size="10.00">optimizer</text>
-<polygon fill="none" stroke="black" points="143,-246.5 143,-265.5 295,-265.5 295,-246.5 143,-246.5"/>
-<polygon fill="#ffa07a" stroke="transparent" points="147,-250.5 147,-261.5 291,-261.5 291,-250.5 147,-250.5"/>
-<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="147,-250.5 147,-261.5 291,-261.5 291,-250.5 147,-250.5"/>
-<polygon fill="#eeeeee" stroke="transparent" stroke-dasharray="5,2" points="56,-227.5 56,-246.5 143,-246.5 143,-227.5 56,-227.5"/>
-<polygon fill="none" stroke="black" points="56,-227.5 56,-246.5 143,-246.5 143,-227.5 56,-227.5"/>
-<text text-anchor="start" x="66" y="-234.5" font-family="Courier,monospace" font-size="10.00">lr_scheduler</text>
-<polygon fill="none" stroke="black" points="143,-227.5 143,-246.5 295,-246.5 295,-227.5 143,-227.5"/>
-<polygon fill="#add8e6" stroke="transparent" points="147,-231.5 147,-242.5 291,-242.5 291,-231.5 147,-231.5"/>
-<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="147,-231.5 147,-242.5 291,-242.5 291,-231.5 147,-231.5"/>
+<polygon fill="#90ee90" stroke="transparent" points="62,-378.5 62,-397.5 295,-397.5 295,-378.5 62,-378.5"/>
+<polygon fill="none" stroke="black" points="62,-378.5 62,-397.5 295,-397.5 295,-378.5 62,-378.5"/>
+<text text-anchor="start" x="93" y="-386.5" font-family="Courier,monospace" font-size="8.00">Config:</text>
+<text text-anchor="start" x="125" y="-386.5" font-family="Courier,monospace" font-size="10.00"> NowcastLightningModule</text>
+<polygon fill="#eeeeee" stroke="transparent" points="62,-359.5 62,-378.5 143,-378.5 143,-359.5 62,-359.5"/>
+<polygon fill="none" stroke="black" points="62,-359.5 62,-378.5 143,-378.5 143,-359.5 62,-359.5"/>
+<text text-anchor="start" x="96" y="-366.5" font-family="Courier,monospace" font-size="10.00">network</text>
+<polygon fill="none" stroke="black" points="143,-359.5 143,-378.5 295,-378.5 295,-359.5 143,-359.5"/>
+<polygon fill="#fff8dc" stroke="transparent" points="147,-363.5 147,-374.5 291,-374.5 291,-363.5 147,-363.5"/>
+<polygon fill="none" stroke="black" points="147,-363.5 147,-374.5 291,-374.5 291,-363.5 147,-363.5"/>
+<polygon fill="#eeeeee" stroke="transparent" points="62,-340.5 62,-359.5 143,-359.5 143,-340.5 62,-340.5"/>
+<polygon fill="none" stroke="black" points="62,-340.5 62,-359.5 143,-359.5 143,-340.5 62,-340.5"/>
+<text text-anchor="start" x="78" y="-347.5" font-family="Courier,monospace" font-size="10.00">loss_class</text>
+<polygon fill="none" stroke="black" points="143,-340.5 143,-359.5 295,-359.5 295,-340.5 143,-340.5"/>
+<text text-anchor="start" x="147" y="-347.5" font-family="Courier,monospace" font-size="10.00">&#39;crps&#39;</text>
+<polygon fill="#eeeeee" stroke="transparent" points="62,-294.5 62,-340.5 143,-340.5 143,-294.5 62,-294.5"/>
+<polygon fill="none" stroke="black" points="62,-294.5 62,-340.5 143,-340.5 143,-294.5 62,-294.5"/>
+<text text-anchor="start" x="72" y="-315" font-family="Courier,monospace" font-size="10.00">loss_params</text>
+<polygon fill="none" stroke="black" points="143,-294.5 143,-340.5 295,-340.5 295,-294.5 143,-294.5"/>
+<polygon fill="#eeeeee" stroke="transparent" points="147,-317.5 147,-336.5 291,-336.5 291,-317.5 147,-317.5"/>
+<polygon fill="none" stroke="black" points="147,-317.5 147,-336.5 291,-336.5 291,-317.5 147,-317.5"/>
+<text text-anchor="start" x="206.5" y="-324.5" font-family="Courier,monospace" font-size="10.00">dict</text>
+<polygon fill="#eeeeee" stroke="transparent" points="147,-298.5 147,-317.5 258,-317.5 258,-298.5 147,-298.5"/>
+<polygon fill="none" stroke="black" points="147,-298.5 147,-317.5 258,-317.5 258,-298.5 147,-298.5"/>
+<text text-anchor="start" x="151" y="-305.5" font-family="Courier,monospace" font-size="10.00">&#39;temporal_lambda&#39;</text>
+<polygon fill="none" stroke="black" points="258,-298.5 258,-317.5 291,-317.5 291,-298.5 258,-298.5"/>
+<text text-anchor="start" x="262" y="-305.5" font-family="Courier,monospace" font-size="10.00">0.01</text>
+<polygon fill="#eeeeee" stroke="transparent" points="62,-275.5 62,-294.5 143,-294.5 143,-275.5 62,-275.5"/>
+<polygon fill="none" stroke="black" points="62,-275.5 62,-294.5 143,-294.5 143,-275.5 62,-275.5"/>
+<text text-anchor="start" x="72" y="-282.5" font-family="Courier,monospace" font-size="10.00">masked_loss</text>
+<polygon fill="none" stroke="black" points="143,-275.5 143,-294.5 295,-294.5 295,-275.5 143,-275.5"/>
+<text text-anchor="start" x="147" y="-282.5" font-family="Courier,monospace" font-size="10.00">True</text>
+<polygon fill="#eeeeee" stroke="transparent" points="62,-256.5 62,-275.5 143,-275.5 143,-256.5 62,-256.5"/>
+<polygon fill="none" stroke="black" points="62,-256.5 62,-275.5 143,-275.5 143,-256.5 62,-256.5"/>
+<text text-anchor="start" x="84" y="-263.5" font-family="Courier,monospace" font-size="10.00">optimizer</text>
+<polygon fill="none" stroke="black" points="143,-256.5 143,-275.5 295,-275.5 295,-256.5 143,-256.5"/>
+<polygon fill="#ffa07a" stroke="transparent" points="147,-260.5 147,-271.5 291,-271.5 291,-260.5 147,-260.5"/>
+<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="147,-260.5 147,-271.5 291,-271.5 291,-260.5 147,-260.5"/>
+<polygon fill="#eeeeee" stroke="transparent" stroke-dasharray="5,2" points="62,-237.5 62,-256.5 143,-256.5 143,-237.5 62,-237.5"/>
+<polygon fill="none" stroke="black" points="62,-237.5 62,-256.5 143,-256.5 143,-237.5 62,-237.5"/>
+<text text-anchor="start" x="66" y="-244.5" font-family="Courier,monospace" font-size="10.00">lr_scheduler</text>
+<polygon fill="none" stroke="black" points="143,-237.5 143,-256.5 295,-256.5 295,-237.5 143,-237.5"/>
+<polygon fill="#add8e6" stroke="transparent" points="147,-241.5 147,-252.5 291,-252.5 291,-241.5 147,-241.5"/>
+<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="147,-241.5 147,-252.5 291,-252.5 291,-241.5 147,-241.5"/>
 </g>
 <!-- 1&#45;&#45;2 -->
 <g id="edge1" class="edge">
 <title>1:c&#45;&#45;2:c</title>
-<path fill="none" stroke="#cbc6b0" stroke-width="3" stroke-opacity="0.501961" d="M216.34,-372.27C200.87,-341.77 121.74,-185.83 84.9,-113.25"/>
+<path fill="none" stroke="#cbc6b0" stroke-width="3" stroke-opacity="0.501961" d="M216.34,-363.42C202.79,-337.52 140.43,-218.3 100.4,-141.77"/>
 </g>
 <!-- 3 -->
 <g id="node3" class="node">
@@ -111,7 +121,7 @@
 <!-- 1&#45;&#45;3 -->
 <g id="edge2" class="edge">
 <title>1:c&#45;&#45;3:c</title>
-<path fill="none" stroke="#cb8061" stroke-width="3" stroke-opacity="0.501961" d="M218.39,-250.44C215.47,-231.13 202.86,-147.8 196.18,-103.66"/>
+<path fill="none" stroke="#cb8061" stroke-width="3" stroke-opacity="0.501961" d="M218.39,-260.21C215.43,-239.6 202.59,-149.92 195.97,-103.73"/>
 </g>
 <!-- 4 -->
 <g id="node4" class="node">
@@ -139,7 +149,7 @@
 <!-- 1&#45;&#45;4 -->
 <g id="edge3" class="edge">
 <title>1:c&#45;&#45;4:c</title>
-<path fill="none" stroke="#8aacb7" stroke-width="3" stroke-opacity="0.501961" d="M221.94,-231.23C233.35,-214.69 275.44,-153.67 303.32,-113.24"/>
+<path fill="none" stroke="#8aacb7" stroke-width="3" stroke-opacity="0.501961" d="M221.72,-241.31C233,-223.93 276.84,-156.37 304.87,-113.18"/>
 </g>
 <!-- 0 -->
 <g id="node5" class="node">
@@ -170,7 +180,7 @@
 <!-- 0&#45;&#45;1 -->
 <g id="edge4" class="edge">
 <title>0:c&#45;&#45;1:c</title>
-<path fill="none" stroke="#73be73" stroke-width="3" stroke-opacity="0.501961" d="M476.81,-527.14C450.29,-515.41 381.95,-483.91 330,-449 311.17,-436.34 291.99,-421.78 273.83,-407.08"/>
+<path fill="none" stroke="#73be73" stroke-width="3" stroke-opacity="0.501961" d="M476.79,-527.17C450.22,-515.51 381.78,-484.16 330,-449 307.41,-433.66 284.39,-415.46 263.31,-397.59"/>
 </g>
 <!-- 5 -->
 <g id="node7" class="node">

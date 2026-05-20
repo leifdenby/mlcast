@@ -187,13 +187,15 @@ from mfai.torch.models import HalfUNet
 from mlcast.config import convgru_training_experiment, train_from_config
 from mlcast.config.fiddlers import use_random_sampler
 
-# Minimal adapter: channel-stack past frames → HalfUNet → one step at a time.
-# NowcastLightningModule calls network(x, steps=N, ensemble_size=M), so any
-# custom network must accept those keyword arguments.
+# Minimal adapter: channel-stack past frames -> HalfUNet -> one step at a time.
+# The forecasting contract fixes input_steps, forecast_steps, and ensemble_size
+# at model initialization; NowcastLightningModule calls network(x).
 class HalfUNetNowcaster(nn.Module):
-    def __init__(self, input_steps: int = 6, num_vars: int = 1):
+    def __init__(self, input_steps: int = 6, forecast_steps: int = 12, ensemble_size: int = 1, num_vars: int = 1):
         super().__init__()
         self.input_steps = input_steps
+        self.forecast_steps = forecast_steps
+        self.ensemble_size = ensemble_size
         self.num_vars = num_vars
         self.unet = HalfUNet(
             input_shape=(256, 256),
@@ -213,13 +215,11 @@ class HalfUNetNowcaster(nn.Module):
     def forward(
         self,
         x: Float[torch.Tensor, "batch input_steps in_channels H W"],
-        steps: int,
-        ensemble_size: int = 1,
-    ) -> Float[torch.Tensor, "batch steps out_channels H W"]:
+    ) -> Float[torch.Tensor, "batch forecast_steps out_channels H W"]:
         # channel-stack all input frames: (b, t, c, h, w) -> (b, t*c, h, w)
         x_flat = einops.rearrange(x, "b t c h w -> b (t c) h w")
         preds = []
-        for _ in range(steps):
+        for _ in range(self.forecast_steps):
             y = self.unet(x_flat)   # [B, num_vars, H, W]
             preds.append(y.unsqueeze(1))
             # slide window: drop the oldest timestep (first num_vars channels),
@@ -233,6 +233,8 @@ use_random_sampler(cfg)
 cfg.pl_module.network = fdl.Config(
     HalfUNetNowcaster,
     input_steps=cfg.data.input_steps,
+    forecast_steps=cfg.data.forecast_steps,
+    ensemble_size=cfg.pl_module.network.ensemble_size,
     num_vars=len(cfg.data.sequence_dataset_factory.standard_names),
 )
 
@@ -277,8 +279,10 @@ mlcast/
 │   │   ├── loader.py                    # YAML config loader
 │   │   └── orchestrator.py             # train_from_config, config persistence
 │   ├── data/
-│   │   ├── source_data_datamodule.py    # Lightning DataModule
-│   │   ├── source_data_datasets.py      # Zarr-backed PyTorch datasets
+│   │   ├── datamodules.py               # Lightning DataModules
+│   │   ├── sequence.py                  # Zarr-backed sequence datasets
+│   │   ├── forecasting.py               # Forecasting task dataset wrapper
+│   │   ├── reconstruction.py            # Reconstruction task dataset wrapper
 │   │   └── normalization.py             # Normalisation registry
 │   └── models/
 │       └── convgru.py                   # ConvGRU encoder-decoder
@@ -329,8 +333,9 @@ concatenated along the channel dimension.
 ### Custom network interface
 
 Any network architecture can be used by replacing `cfg.pl_module.network`
-with a `fdl.Config` node pointing at your class.  The only requirement is
-that `forward` accepts the following signature:
+with a `fdl.Config` node pointing at your class. Forecasting models should set
+`input_steps`, `forecast_steps`, and `ensemble_size` during initialization. The
+only runtime `forward` requirement is:
 
 ```python
 # from jaxtyping import Float
@@ -339,9 +344,7 @@ that `forward` accepts the following signature:
 def forward(
     self,
     x: Float[torch.Tensor, "batch input_steps in_channels H W"],
-    steps: int,          # number of forecast steps to produce
-    ensemble_size: int,  # number of stochastic ensemble members
-) -> Float[torch.Tensor, "batch steps out_channels H W"]:
+) -> Float[torch.Tensor, "batch forecast_steps out_channels H W"]:
     ...
 ```
 

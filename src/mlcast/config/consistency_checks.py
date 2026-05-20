@@ -31,6 +31,7 @@ def validate_config(cfg: fdl.Config) -> None:
     sequence_dataset_factory = cfg.data.sequence_dataset_factory
     network = cfg.pl_module.network
     pl_module = cfg.pl_module
+    data = cfg.data
 
     # Contract 1: Network input_channels == len(sequence_dataset_factory.standard_names)
     # If the network does not expose input_channels, emit a warning because
@@ -73,16 +74,49 @@ def validate_config(cfg: fdl.Config) -> None:
             )
 
     # Contract 3: Ensemble models require CRPS or AFCRPS
-    if pl_module.ensemble_size > 1:
+    ensemble_size = getattr(network, "ensemble_size", 1)
+    if ensemble_size > 1:
         if str(pl_module.loss_class).lower() not in ["crps", "afcrps"]:
             raise ValueError(
-                f"Contract 3 violated: Ensemble models (ensemble_size={pl_module.ensemble_size}) "
+                f"Contract 3 violated: Ensemble models (ensemble_size={ensemble_size}) "
                 f"require 'crps' or 'afcrps' loss, got '{pl_module.loss_class}'."
             )
 
     # Contract 4: Forecasting mask return must match model masked_loss
-    if bool(cfg.data.return_mask) != bool(pl_module.masked_loss):
+    if bool(data.return_mask) != bool(pl_module.masked_loss):
         raise ValueError(
-            f"Contract 4 violated: data.return_mask ({cfg.data.return_mask}) "
+            f"Contract 4 violated: data.return_mask ({data.return_mask}) "
             f"must match pl_module.masked_loss ({pl_module.masked_loss})."
+        )
+
+    # Contract 5: Dataset input_steps must match model input_steps
+    try:
+        net_input_steps = network.input_steps
+    except AttributeError:
+        logger.warning(
+            "Warning: can't ensure network input_steps matches data.input_steps, "
+            "because network {} doesn't expose 'input_steps'.",
+            network.__class__.__name__,
+        )
+        net_input_steps = None
+    if net_input_steps is not None and net_input_steps != data.input_steps:
+        raise ValueError(
+            f"Contract 5 violated: network input_steps ({net_input_steps}) "
+            f"must equal data.input_steps ({data.input_steps})."
+        )
+
+    # Contract 6: Dataset forecast_steps must match model forecast_steps
+    try:
+        net_forecast_steps = network.forecast_steps
+    except AttributeError:
+        logger.warning(
+            "Warning: can't ensure network forecast_steps matches data.forecast_steps, "
+            "because network {} doesn't expose 'forecast_steps'.",
+            network.__class__.__name__,
+        )
+        net_forecast_steps = None
+    if net_forecast_steps is not None and net_forecast_steps != data.forecast_steps:
+        raise ValueError(
+            f"Contract 6 violated: network forecast_steps ({net_forecast_steps}) "
+            f"must equal data.forecast_steps ({data.forecast_steps})."
         )

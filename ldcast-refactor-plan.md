@@ -43,10 +43,10 @@
   - [x] autoencoder improves reconstruction loss on a small generated dataset after a few training steps.
 
 3. Forecasting model contract
-- [ ] Standardize all forecasting models on init-time `input_steps`, `forecast_steps`, and `ensemble_size`.
-- [ ] Standardize forecasting model inference on `forward(x)` only; do not pass `forecast_steps` or `ensemble_size` at runtime.
-- [ ] Refactor the existing ConvGRU path to follow this fixed-shape contract.
-- [ ] Add config consistency checks that dataset `input_steps` and `forecast_steps` match the configured forecasting model.
+- [x] Standardize all forecasting models on init-time `input_steps`, `forecast_steps`, and `ensemble_size`.
+- [x] Standardize forecasting model inference on `forward(x)` only; do not pass `forecast_steps` or `ensemble_size` at runtime.
+- [x] Refactor the existing ConvGRU path to follow this fixed-shape contract.
+- [x] Add config consistency checks that dataset `input_steps` and `forecast_steps` match the configured forecasting model.
 
 4. Diffusion model architecture
 - Diffusion model split:

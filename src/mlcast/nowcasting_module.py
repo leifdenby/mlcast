@@ -2,7 +2,7 @@
 
 Wraps an injected PyTorch :class:`nn.Module` (the network architecture) and
 handles training, validation, and test steps including loss computation,
-ensemble generation, and image logging.
+image logging, and optimizer configuration.
 """
 
 from collections.abc import Callable
@@ -30,8 +30,6 @@ class NowcastLightningModule(pl.LightningModule):
     ----------
     network : torch.nn.Module
         The PyTorch network architecture to train.
-    ensemble_size : int, optional
-        Number of ensemble members to generate. Default is ``1``.
     loss_class : type[torch.nn.Module] or str, optional
         Loss function class or its string name. Default is ``"mse"``.
     loss_params : dict or None, optional
@@ -49,7 +47,6 @@ class NowcastLightningModule(pl.LightningModule):
     def __init__(
         self,
         network: torch.nn.Module,
-        ensemble_size: int = 1,
         loss_class: type[torch.nn.Module] | str = "mse",
         loss_params: dict[str, Any] | None = None,
         masked_loss: bool = False,
@@ -58,7 +55,7 @@ class NowcastLightningModule(pl.LightningModule):
     ) -> None:
         super().__init__()
         # Explicitly save hyperparameters that are accessed later via self.hparams
-        self.save_hyperparameters("ensemble_size", "loss_class", "loss_params", "masked_loss")
+        self.save_hyperparameters("loss_class", "loss_params", "masked_loss")
 
         self.network = network
         self.optimizer_factory = optimizer
@@ -75,8 +72,6 @@ class NowcastLightningModule(pl.LightningModule):
     def forward(
         self,
         x: Float[torch.Tensor, "batch time channels height width"],
-        forecast_steps: int,
-        ensemble_size: int | None = None,
     ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
         """Run the network forward pass.
 
@@ -84,22 +79,15 @@ class NowcastLightningModule(pl.LightningModule):
         ----------
         x : Float[torch.Tensor, "batch time channels height width"]
             Input tensor.
-        forecast_steps : int
-            Number of steps to forecast.
-        ensemble_size : int or None, optional
-            Number of ensemble members to generate. If ``None``, uses the initialized value. Default is ``None``.
 
         Returns
         -------
         preds : Float[torch.Tensor, "batch forecast_steps out_channels height width"]
             Forecast tensor.
         """
-        ensemble_size = self.hparams["ensemble_size"] if ensemble_size is None else ensemble_size
-        return self.network(x, steps=forecast_steps, ensemble_size=ensemble_size)
+        return self.network(x)
 
-    def shared_step(
-        self, batch: dict[str, torch.Tensor], split: str = "train", ensemble_size: int | None = None
-    ) -> torch.Tensor:
+    def shared_step(self, batch: dict[str, torch.Tensor], split: str = "train") -> torch.Tensor:
         """Shared forward step for training, validation, and testing.
 
         Parameters
@@ -110,10 +98,6 @@ class NowcastLightningModule(pl.LightningModule):
         split : str, optional
             The data split being processed (e.g., ``"train"``, ``"val"``, ``"test"``).
             Used for logging. Default is ``"train"``.
-        ensemble_size : int or None, optional
-            The number of ensemble members to generate. If ``None``, uses the
-            default from hyper-parameters. Default is ``None``.
-
         Returns
         -------
         loss : torch.Tensor
@@ -121,9 +105,8 @@ class NowcastLightningModule(pl.LightningModule):
         """
         past = batch["input"]
         future = batch["target"]
-        forecast_steps = future.shape[1]
 
-        preds = self(past, forecast_steps=forecast_steps, ensemble_size=ensemble_size).clamp(min=-1, max=1)
+        preds = self(past).clamp(min=-1, max=1)
 
         if self.hparams["masked_loss"]:
             mask = batch["target_mask"]
@@ -139,7 +122,8 @@ class NowcastLightningModule(pl.LightningModule):
 
         self.log(f"{split}_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
 
-        if self.hparams["ensemble_size"] > 1:
+        ensemble_size = getattr(self.network, "ensemble_size", 1)
+        if ensemble_size > 1:
             ensemble_std = preds.std(dim=2).mean()
             self.log(f"{split}_ensemble_std", ensemble_std, on_epoch=True, sync_dist=True)
 
@@ -157,7 +141,7 @@ class NowcastLightningModule(pl.LightningModule):
                 preds=preds,
                 logger=self.logger,  # type: ignore
                 global_step=self.global_step,
-                ensemble_size=self.hparams["ensemble_size"],
+                ensemble_size=ensemble_size,
                 split=split,
             )
         return loss
@@ -194,7 +178,7 @@ class NowcastLightningModule(pl.LightningModule):
         loss : torch.Tensor
             The validation loss.
         """
-        return self.shared_step(batch, split="val", ensemble_size=10)
+        return self.shared_step(batch, split="val")
 
     def test_step(self, batch: dict[str, torch.Tensor], _batch_idx: int) -> torch.Tensor:
         """Execute a single test step.
@@ -211,7 +195,7 @@ class NowcastLightningModule(pl.LightningModule):
         loss : torch.Tensor
             The test loss.
         """
-        return self.shared_step(batch, split="test", ensemble_size=10)
+        return self.shared_step(batch, split="test")
 
     def configure_optimizers(self) -> Any:
         """Configure the optimizer and optional learning rate scheduler.
@@ -260,8 +244,6 @@ class NowcastLightningModule(pl.LightningModule):
     def predict(
         self,
         past: torch.Tensor,
-        forecast_steps: int = 1,
-        ensemble_size: int | None = 1,
         standard_name: str = "rainfall_rate",
     ) -> np.ndarray[Any, Any]:
         """Generate precipitation forecasts from past radar observations.
@@ -272,10 +254,6 @@ class NowcastLightningModule(pl.LightningModule):
         ----------
         past : torch.Tensor
             Past radar frames as unnormalized values (e.g., mm/h or kg m-2 s-1), of shape ``(T, H, W)``.
-        forecast_steps : int, optional
-            Number of future timesteps to forecast. Default is ``1``.
-        ensemble_size : int, optional
-            Number of ensemble members. Default is ``1``.
         standard_name : str, optional
             The CF standard name defining the input/output domain for normalization lookup.
             Default is ``"rainfall_rate"``.
@@ -284,12 +262,11 @@ class NowcastLightningModule(pl.LightningModule):
         -------
         preds : np.ndarray
             Forecasted unnormalized values, of shape
-            ``(ensemble_size, forecast_steps, H, W)``.
+            ``(ensemble_size, forecast_steps, H, W)``. The ensemble size and
+            forecast horizon are determined by the configured network.
         """
         if len(past.shape) != 3:
             raise ValueError("Input must be of shape (T, H, W)")
-
-        ensemble_size = self.hparams["ensemble_size"] if ensemble_size is None else ensemble_size
 
         past_clean = np.nan_to_num(past.cpu().numpy())
         past_clean = past_clean[np.newaxis, :, np.newaxis, ...]
@@ -302,7 +279,7 @@ class NowcastLightningModule(pl.LightningModule):
 
         self.eval()
         with torch.no_grad():
-            preds_tensor = self.network(x, steps=forecast_steps, ensemble_size=ensemble_size)
+            preds_tensor = self.network(x)
 
         preds_np: np.ndarray[Any, Any] = preds_tensor.cpu().numpy()
 

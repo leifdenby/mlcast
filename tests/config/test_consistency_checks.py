@@ -53,7 +53,7 @@ def test_contract_3_probabilistic_loss() -> None:
     """Verify Contract 3: Ensemble models require CRPS or AFCRPS."""
     cfg = convgru_training_experiment.as_buildable()
     # Break Contract 3
-    cfg.pl_module.ensemble_size = 5
+    cfg.pl_module.network.ensemble_size = 5
     cfg.pl_module.loss_class = "mse"
 
     with pytest.raises(ValueError, match="Contract 3 violated:"):
@@ -68,6 +68,26 @@ def test_contract_4_masking_sync() -> None:
     cfg.pl_module.masked_loss = False
 
     with pytest.raises(ValueError, match="Contract 4 violated:"):
+        validate_config(cfg)
+
+
+def test_contract_5_input_steps_sync() -> None:
+    """Verify Contract 5: data input_steps must match model input_steps."""
+    cfg = convgru_training_experiment.as_buildable()
+    cfg.data.input_steps = 4
+    cfg.pl_module.network.input_steps = 6
+
+    with pytest.raises(ValueError, match="Contract 5 violated:"):
+        validate_config(cfg)
+
+
+def test_contract_6_forecast_steps_sync() -> None:
+    """Verify Contract 6: data forecast_steps must match model forecast_steps."""
+    cfg = convgru_training_experiment.as_buildable()
+    cfg.data.forecast_steps = 10
+    cfg.pl_module.network.forecast_steps = 12
+
+    with pytest.raises(ValueError, match="Contract 6 violated:"):
         validate_config(cfg)
 
 

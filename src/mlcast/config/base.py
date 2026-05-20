@@ -83,6 +83,9 @@ def convgru_training_experiment() -> Experiment:
     )
 
     network = ConvGruModel(
+        input_steps=6,
+        forecast_steps=12,
+        ensemble_size=2,
         input_channels=1,
         num_blocks=5,
         noisy_decoder=False,
@@ -90,7 +93,6 @@ def convgru_training_experiment() -> Experiment:
 
     pl_module = NowcastLightningModule(
         network=network,
-        ensemble_size=2,
         loss_class="crps",
         loss_params={"temporal_lambda": 0.01},
         masked_loss=True,
