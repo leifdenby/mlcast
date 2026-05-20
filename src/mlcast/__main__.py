@@ -9,7 +9,7 @@ Usage examples::
     python -m mlcast train \\
         --config config:convgru_training_experiment \\
         --config fiddler:use_random_sampler \\
-        --config set:data.dataset_factory.zarr_path="'/path/to/data.zarr'"
+        --config set:data.sequence_dataset_factory.zarr_path="'/path/to/data.zarr'"
 
     # Train from a previously saved YAML config:
     python -m mlcast train --config /path/to/config.yaml
@@ -73,8 +73,9 @@ def get_cli_examples(
             f"--config config:{base_config_name} --config set:data.batch_size={max(1, cfg.data.batch_size * 2)}",
         ),
         (
-            f"Override the path to the Zarr dataset (default: {cfg.data.dataset_factory.zarr_path})",
-            f"--config config:{base_config_name} --config set:data.dataset_factory.zarr_path='/new/path/to/radar.zarr'",
+            f"Override the path to the Zarr dataset (default: {cfg.data.sequence_dataset_factory.zarr_path})",
+            f"--config config:{base_config_name} "
+            "--config set:data.sequence_dataset_factory.zarr_path='/new/path/to/radar.zarr'",
         ),
         (
             f"Override trainer properties (default max_epochs: {cfg.trainer.max_epochs})",

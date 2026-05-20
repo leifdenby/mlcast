@@ -19,13 +19,13 @@ from loguru import logger
 from pytorch_lightning.loggers import MLFlowLogger
 
 from ..callbacks import LogSystemInfoCallback
-from ..data.source_data_datasets import SourceDataRandomSamplingDataset
+from ..data.sequence import SourceDataRandomSequenceDataset
 
 
 def set_variables(cfg: fdl.Config, standard_names: list[str]) -> None:
     """Fiddler to synchronize dataset variables with the network's input channels.
 
-    Sets ``dataset_factory.standard_names`` on the data config and, when the
+    Sets ``sequence_dataset_factory.standard_names`` on the data config and, when the
     network config exposes an ``input_channels`` parameter (e.g.
     ``ConvGruModel``), keeps it in sync.  Networks that use a different
     parameter name for the channel count (e.g. ``HalfUNet`` uses
@@ -39,7 +39,7 @@ def set_variables(cfg: fdl.Config, standard_names: list[str]) -> None:
     standard_names : list of str
         The new list of standard names to load.
     """
-    cfg.data.dataset_factory.standard_names = standard_names
+    cfg.data.sequence_dataset_factory.standard_names = standard_names
     network_cls = cfg.pl_module.network.__fn_or_cls__
     sig = inspect.signature(network_cls.__init__)
     if "input_channels" in sig.parameters:
@@ -53,7 +53,7 @@ def set_variables(cfg: fdl.Config, standard_names: list[str]) -> None:
 
 
 def toggle_masking(cfg: fdl.Config, enabled: bool) -> None:
-    """Fiddler to synchronize dataset mask yielding with masked loss computation.
+    """Fiddler to synchronize forecasting-mask yielding with masked loss computation.
 
     Parameters
     ----------
@@ -62,12 +62,12 @@ def toggle_masking(cfg: fdl.Config, enabled: bool) -> None:
     enabled : bool
         Whether to enable masking or not.
     """
-    cfg.data.dataset_factory.return_mask = enabled
+    cfg.data.return_mask = enabled
     cfg.pl_module.masked_loss = enabled
 
 
 def use_random_sampler(cfg: fdl.Config) -> None:
-    """Fiddler to switch the dataset factory to use the random sampler.
+    """Fiddler to switch the sequence dataset factory to use the random sampler.
 
     Parameters
     ----------
@@ -75,14 +75,12 @@ def use_random_sampler(cfg: fdl.Config) -> None:
         The Fiddle configuration to mutate.
     """
     # Keep the existing parameters but change the underlying class
-    cfg.data.dataset_factory = fdl.Partial(
-        SourceDataRandomSamplingDataset,
-        zarr_path=cfg.data.dataset_factory.zarr_path,
-        standard_names=cfg.data.dataset_factory.standard_names,
-        input_steps=cfg.data.dataset_factory.input_steps,
-        forecast_steps=cfg.data.dataset_factory.forecast_steps,
-        return_mask=cfg.data.dataset_factory.return_mask,
-        storage_options=getattr(cfg.data.dataset_factory, "storage_options", None),
+    cfg.data.sequence_dataset_factory = fdl.Partial(
+        SourceDataRandomSequenceDataset,
+        zarr_path=cfg.data.sequence_dataset_factory.zarr_path,
+        standard_names=cfg.data.sequence_dataset_factory.standard_names,
+        sequence_steps=cfg.data.sequence_dataset_factory.sequence_steps,
+        storage_options=getattr(cfg.data.sequence_dataset_factory, "storage_options", None),
     )
 
 
@@ -103,8 +101,8 @@ def use_anon_s3_dataset(cfg: fdl.Buildable, zarr_path: str, endpoint_url: str) -
     endpoint_url : str
         The endpoint URL for the S3 object store.
     """
-    cfg.data.dataset_factory.zarr_path = zarr_path
-    cfg.data.dataset_factory.storage_options = {
+    cfg.data.sequence_dataset_factory.zarr_path = zarr_path
+    cfg.data.sequence_dataset_factory.storage_options = {
         "anon": True,
         "client_kwargs": {
             "endpoint_url": endpoint_url,

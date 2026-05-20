@@ -25,9 +25,9 @@ def test_cli_train_command(fp_test_dataset: Path, tmp_path: Path) -> None:
         "--config",
         "fiddler:use_random_sampler",
         "--config",
-        f"set:data.dataset_factory.zarr_path='{fp_test_dataset.absolute()}'",
+        f"set:data.sequence_dataset_factory.zarr_path='{fp_test_dataset.absolute()}'",
         "--config",
-        "set:data.dataset_factory.standard_names=['rainfall_flux']",
+        "set:data.sequence_dataset_factory.standard_names=['rainfall_flux']",
         "--config",
         "set:data.splits={'time': {'train': 0.4, 'val': 0.3, 'test': 0.3}}",
         "--config",
@@ -59,8 +59,8 @@ def test_cli_train_from_yaml_config(fp_test_dataset: Path, tmp_path: Path) -> No
     cfg = convgru_training_experiment.as_buildable()
     # Switch to random sampler (no CSV required) and use the correct variable name
     use_random_sampler(cfg)
-    cfg.data.dataset_factory.standard_names = ["rainfall_flux"]
-    cfg.data.dataset_factory.zarr_path = str(fp_test_dataset.absolute())
+    cfg.data.sequence_dataset_factory.standard_names = ["rainfall_flux"]
+    cfg.data.sequence_dataset_factory.zarr_path = str(fp_test_dataset.absolute())
     cfg.data.splits = {"time": {"train": 0.4, "val": 0.3, "test": 0.3}}
     cfg.trainer.fast_dev_run = True
     cfg.data.batch_size = 1

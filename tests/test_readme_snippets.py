@@ -120,7 +120,7 @@ def _patch_cfg(cfg: fdl.Config, fp_dataset: Path, tmp_path: Path) -> None:
     tmp_path : Path
         Pytest-provided temporary directory for trainer outputs.
     """
-    cfg.data.dataset_factory.zarr_path = str(fp_dataset.absolute())
+    cfg.data.sequence_dataset_factory.zarr_path = str(fp_dataset.absolute())
     set_variables(cfg, standard_names=["rainfall_flux"])
     # Switch to the on-the-fly random sampler so no pre-computed CSV is needed.
     use_random_sampler(cfg)

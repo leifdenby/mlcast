@@ -28,14 +28,14 @@ def validate_config(cfg: fdl.Config) -> None:
     ValueError
         If any configuration contract is violated.
     """
-    dataset_factory = cfg.data.dataset_factory
+    sequence_dataset_factory = cfg.data.sequence_dataset_factory
     network = cfg.pl_module.network
     pl_module = cfg.pl_module
 
-    # Contract 1: Network input_channels == len(dataset_factory.standard_names)
+    # Contract 1: Network input_channels == len(sequence_dataset_factory.standard_names)
     # If the network does not expose input_channels, emit a warning because
     # this contract cannot be checked.
-    num_vars = len(dataset_factory.standard_names)
+    num_vars = len(sequence_dataset_factory.standard_names)
     try:
         net_input_channels = network.input_channels
     except AttributeError:
@@ -51,7 +51,7 @@ def validate_config(cfg: fdl.Config) -> None:
             f"must equal the number of standard_names ({num_vars})."
         )
 
-    # Contract 2: Dataset width must be divisible by 2 ** network.num_blocks
+    # Contract 2: Sequence dataset width must be divisible by 2 ** network.num_blocks
     # If the network does not expose num_blocks, emit a warning because this
     # contract cannot be checked.
     try:
@@ -64,7 +64,7 @@ def validate_config(cfg: fdl.Config) -> None:
         )
         num_blocks = None
     if num_blocks is not None:
-        width = getattr(dataset_factory, "width", 256)
+        width = getattr(sequence_dataset_factory, "width", 256)
         divisor = 2**num_blocks
         if width % divisor != 0:
             raise ValueError(
@@ -80,9 +80,9 @@ def validate_config(cfg: fdl.Config) -> None:
                 f"require 'crps' or 'afcrps' loss, got '{pl_module.loss_class}'."
             )
 
-    # Contract 4: Dataset return_mask must match model masked_loss
-    if bool(dataset_factory.return_mask) != bool(pl_module.masked_loss):
+    # Contract 4: Forecasting mask return must match model masked_loss
+    if bool(cfg.data.return_mask) != bool(pl_module.masked_loss):
         raise ValueError(
-            f"Contract 4 violated: dataset_factory.return_mask ({dataset_factory.return_mask}) "
+            f"Contract 4 violated: data.return_mask ({cfg.data.return_mask}) "
             f"must match pl_module.masked_loss ({pl_module.masked_loss})."
         )

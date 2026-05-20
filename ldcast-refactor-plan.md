@@ -10,25 +10,25 @@
 - [x] Treat `convgru_training_experiment` as the existing ConvGRU forecasting example, not as a special default config.
 
 1. Forecasting and reconstruction data
-- [ ] Move the existing sampled-sequence source-data logic into `src/mlcast/data/sequence.py`.
-- [ ] Rename `SourceDataDatasetBase`, `SourceDataPrecomputedSamplingDataset`, and `SourceDataRandomSamplingDataset` to `SourceDataSequenceDatasetBase`, `SourceDataPrecomputedSequenceDataset`, and `SourceDataRandomSequenceDataset` under the sequence data area.
-- [ ] Remove the old source-data public API rather than keeping compatibility re-exports.
-- [ ] Keep the existing sampled-sequence implementation as the source-data sequence layer.
-- [ ] Sequence datasets should own normalization and return normalized tensors of shape `(sequence_steps, channels, height, width)`.
-- [ ] Replace forecasting-specific sampling parameters in the source-data sequence layer with a single `sequence_steps` parameter.
-- [ ] Add `src/mlcast/data/forecasting.py`.
-- [ ] Add a generic `ForecastingDataset` that wraps a base sequence dataset, takes `input_steps` and `forecast_steps`, validates `input_steps + forecast_steps == sequence_steps`, and returns forecasting samples.
-- [ ] `ForecastingDataset` should derive `target_mask` itself rather than relying on the base sequence dataset to return masks.
-- [ ] Add `src/mlcast/data/reconstruction.py`.
-- [ ] Add `ReconstructionDataset`, a generic wrapper around a base sequence dataset that slices each full sequence into all overlapping windows of length `input_steps` and returns only the tensor window.
-- [ ] Add `src/mlcast/data/datamodules.py`.
-- [ ] Rename `SourceDataDataModule` to `ForecastingDataModule` in `src/mlcast/data/datamodules.py`.
-- [ ] `ForecastingDataModule` should remain factory-based and build `ForecastingDataset` instances over the underlying sequence datasets.
-- [ ] Add `ReconstructionDataModule` to `src/mlcast/data/datamodules.py`; it remains factory-based, builds the underlying sequence datasets, splits them into train/val/test, and wraps each split with `ReconstructionDataset`.
-- [ ] Keep this generic: no LDCast-specific naming in the module or class names.
-- [ ] Forecasting should stay one-sequence-to-one-sample.
-- [ ] Reconstruction should expand each sequence into `sequence_steps - input_steps + 1` overlapping samples.
-- [ ] Stage 1 should use reconstruction windows of length `input_steps` derived from the full sequence dataset.
+- [x] Move the existing sampled-sequence source-data logic into `src/mlcast/data/sequence.py`.
+- [x] Rename `SourceDataDatasetBase`, `SourceDataPrecomputedSamplingDataset`, and `SourceDataRandomSamplingDataset` to `SourceDataSequenceDatasetBase`, `SourceDataPrecomputedSequenceDataset`, and `SourceDataRandomSequenceDataset` under the sequence data area.
+- [x] Remove the old source-data public API rather than keeping compatibility re-exports.
+- [x] Keep the existing sampled-sequence implementation as the source-data sequence layer.
+- [x] Sequence datasets should own normalization and return normalized tensors of shape `(sequence_steps, channels, height, width)`.
+- [x] Replace forecasting-specific sampling parameters in the source-data sequence layer with a single `sequence_steps` parameter.
+- [x] Add `src/mlcast/data/forecasting.py`.
+- [x] Add a generic `ForecastingDataset` that wraps a base sequence dataset, takes `input_steps` and `forecast_steps`, validates `input_steps + forecast_steps == sequence_steps`, and returns forecasting samples.
+- [x] `ForecastingDataset` should derive `target_mask` itself rather than relying on the base sequence dataset to return masks.
+- [x] Add `src/mlcast/data/reconstruction.py`.
+- [x] Add `ReconstructionDataset`, a generic wrapper around a base sequence dataset that slices each full sequence into all overlapping windows of length `input_steps` and returns only the tensor window.
+- [x] Add `src/mlcast/data/datamodules.py`.
+- [x] Rename `SourceDataDataModule` to `ForecastingDataModule` in `src/mlcast/data/datamodules.py`.
+- [x] `ForecastingDataModule` should remain factory-based and build `ForecastingDataset` instances over the underlying sequence datasets.
+- [x] Add `ReconstructionDataModule` to `src/mlcast/data/datamodules.py`; it remains factory-based, builds the underlying sequence datasets, splits them into train/val/test, and wraps each split with `ReconstructionDataset`.
+- [x] Keep this generic: no LDCast-specific naming in the module or class names.
+- [x] Forecasting should stay one-sequence-to-one-sample.
+- [x] Reconstruction should expand each sequence into `sequence_steps - input_steps + 1` overlapping samples.
+- [x] Stage 1 should use reconstruction windows of length `input_steps` derived from the full sequence dataset.
 
 2. Autoencoder model architecture
 - Autoencoder model split:

@@ -117,7 +117,7 @@ Multiple `--config` flags are applied in order and can be combined freely.
 # Override dataset path and batch size
 mlcast train \
     --config config:convgru_training_experiment \
-    --config set:data.dataset_factory.zarr_path=/data/radar.zarr \
+    --config set:data.sequence_dataset_factory.zarr_path=/data/radar.zarr \
     --config set:data.batch_size=32
 
 # Switch to random sampler and log to MLflow
@@ -174,7 +174,7 @@ As an example, here is how to wrap an
 U-Net) to satisfy the interface.  The wrapper channel-stacks the past frames
 and runs the U-Net autoregressively for each requested forecast step:
 
-> **Note** — `input_steps` equals `dataset_factory.input_steps` (6 by
+> **Note** — `input_steps` equals the forecasting data module's `input_steps` (6 by
 > default) and is directly readable from the config graph before building.
 
 ```python
@@ -232,8 +232,8 @@ use_random_sampler(cfg)
 
 cfg.pl_module.network = fdl.Config(
     HalfUNetNowcaster,
-    input_steps=cfg.data.dataset_factory.input_steps,
-    num_vars=len(cfg.data.dataset_factory.standard_names),
+    input_steps=cfg.data.input_steps,
+    num_vars=len(cfg.data.sequence_dataset_factory.standard_names),
 )
 
 train_from_config(cfg)
@@ -256,7 +256,7 @@ experiment.run()              # trainer.fit() + trainer.test()
 |---------|-----------|--------------|
 | `use_mlflow_logger` | *(none)* | Replaces the default `TensorBoardLogger` with `MLFlowLogger` and appends `LogSystemInfoCallback`; respects the `MLFLOW_TRACKING_URI` environment variable |
 | `set_variables` | `standard_names` | Sets the list of input variables on the dataset and updates `network.input_channels` to match |
-| `toggle_masking` | `enabled` | Toggles masked-loss mode by setting both `dataset_factory.return_mask` and `pl_module.masked_loss` to the same value |
+| `toggle_masking` | `enabled` | Toggles masked-loss mode by setting both `data.return_mask` and `pl_module.masked_loss` to the same value |
 | `use_anon_s3_dataset` | `zarr_path`, `endpoint_url` | Points the dataset at an anonymous S3 object store; sets `zarr_path` and the required `storage_options` together |
 | `use_random_sampler` | *(none)* | Switches the dataset factory to the on-the-fly random sampler (useful during development when no precomputed CSV is available) |
 
