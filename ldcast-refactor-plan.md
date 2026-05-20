@@ -10,45 +10,62 @@
 - [ ] Treat `convgru_training_experiment` as the existing ConvGRU forecasting example, not as a special default config.
 
 1. Forecasting and reconstruction data
-- [ ] Rename the existing sampled-sequence dataset classes into `src/mlcast/data/forecasting.py`.
-- [ ] Rename `SourceDataDatasetBase`, `SourceDataPrecomputedSamplingDataset`, and `SourceDataRandomSamplingDataset` into forecasting-oriented names under the forecasting data area.
+- [ ] Move the existing sampled-sequence source-data logic into `src/mlcast/data/sequence.py`.
+- [ ] Rename `SourceDataDatasetBase`, `SourceDataPrecomputedSamplingDataset`, and `SourceDataRandomSamplingDataset` to `SourceDataSequenceDatasetBase`, `SourceDataPrecomputedSequenceDataset`, and `SourceDataRandomSequenceDataset` under the sequence data area.
 - [ ] Remove the old source-data public API rather than keeping compatibility re-exports.
-- [ ] Keep the existing sampled-sequence dataset implementation as the forecasting data source.
+- [ ] Keep the existing sampled-sequence implementation as the source-data sequence layer.
+- [ ] Sequence datasets should own normalization and return normalized tensors of shape `(sequence_steps, channels, height, width)`.
+- [ ] Replace forecasting-specific sampling parameters in the source-data sequence layer with a single `sequence_steps` parameter.
+- [ ] Add `src/mlcast/data/forecasting.py`.
+- [ ] Add a generic `ForecastingDataset` that wraps a base sequence dataset, takes `input_steps` and `forecast_steps`, validates `input_steps + forecast_steps == sequence_steps`, and returns forecasting samples.
+- [ ] `ForecastingDataset` should derive `target_mask` itself rather than relying on the base sequence dataset to return masks.
 - [ ] Add `src/mlcast/data/reconstruction.py`.
-- [ ] Add `ReconstructionDataset`, a thin wrapper around a `base_forecasting_dataset` that returns only the input tensor `x`.
-- [ ] Add `ReconstructionDataModule`, which remains factory-based, builds the underlying forecasting datasets, splits them into train/val/test, and wraps each split with `ReconstructionDataset`.
+- [ ] Add `ReconstructionDataset`, a generic wrapper around a base sequence dataset that slices each full sequence into all overlapping windows of length `input_steps` and returns only the tensor window.
+- [ ] Add `src/mlcast/data/datamodules.py`.
+- [ ] Rename `SourceDataDataModule` to `ForecastingDataModule` in `src/mlcast/data/datamodules.py`.
+- [ ] `ForecastingDataModule` should remain factory-based and build `ForecastingDataset` instances over the underlying sequence datasets.
+- [ ] Add `ReconstructionDataModule` to `src/mlcast/data/datamodules.py`; it remains factory-based, builds the underlying sequence datasets, splits them into train/val/test, and wraps each split with `ReconstructionDataset`.
 - [ ] Keep this generic: no LDCast-specific naming in the module or class names.
-- [ ] Stage 1 should use only the input window from the forecasting dataset.
-- [ ] Allow `forecast_steps == 0` in forecasting datasets, but emit a warning when used.
+- [ ] Forecasting should stay one-sequence-to-one-sample.
+- [ ] Reconstruction should expand each sequence into `sequence_steps - input_steps + 1` overlapping samples.
+- [ ] Stage 1 should use reconstruction windows of length `input_steps` derived from the full sequence dataset.
 
 2. Autoencoder model architecture
 - Autoencoder model split:
   - [ ] `src/mlcast/models/autoencoder/encoder.py` for `Encoder` and `EncoderBlock`.
   - [ ] `src/mlcast/models/autoencoder/decoder.py` for `Decoder` and `DecoderBlock`.
   - [ ] `src/mlcast/models/autoencoder/net.py` for `AutoencoderNet`.
+- [ ] Use `input_steps` for the stage-1 reconstruction window length; do not introduce names like `autoenc_time_ratio`.
 - Autoencoder validation and tests:
   - [ ] encoder output shape.
   - [ ] decoder output shape.
   - [ ] autoencoder reconstruction forward pass.
   - [ ] autoencoder improves reconstruction loss on a small generated dataset after a few training steps.
 
-3. Diffusion model architecture
+3. Forecasting model contract
+- [ ] Standardize all forecasting models on init-time `input_steps`, `forecast_steps`, and `ensemble_size`.
+- [ ] Standardize forecasting model inference on `forward(x)` only; do not pass `forecast_steps` or `ensemble_size` at runtime.
+- [ ] Refactor the existing ConvGRU path to follow this fixed-shape contract.
+- [ ] Add config consistency checks that dataset `input_steps` and `forecast_steps` match the configured forecasting model.
+
+4. Diffusion model architecture
 - Diffusion model split:
   - [ ] `src/mlcast/models/diffusion/conditioner.py` for latent conditioning blocks and `ConditionerNet`.
   - [ ] `src/mlcast/models/diffusion/denoiser.py` for `DenoiserUNet` and timestep-aware helpers.
   - [ ] `src/mlcast/models/diffusion/net.py` for `LatentDiffusionNet`.
-  - [ ] `src/mlcast/models/diffusion/forecasting.py` for `LatentDiffusionForecaster`, the diffusion-specific adapter that exposes `forward(x, forecast_steps, ensemble_size)`.
+  - [ ] `src/mlcast/models/diffusion/forecasting.py` for `LatentDiffusionForecaster`, the diffusion-specific adapter configured with fixed `input_steps`, `forecast_steps`, and `ensemble_size` and exposing `forward(x)`.
   - [ ] `src/mlcast/models/diffusion/scheduler.py`, `ema.py`, `sampler.py`, `loss.py` for diffusion support code.
 - Validation and tests:
   - [ ] diffusion forecasting adapter API.
   - [ ] diffusion model improves loss on a small generated latent dataset after a few training steps.
 
-4. Task wrappers
+5. Task wrappers
 - [ ] Add `src/mlcast/modules/forecasting.py` and rename `NowcastLightningModule` to `ForecastingModule`.
+- [ ] Remove runtime `forecast_steps` and `ensemble_size` arguments from the forecasting Lightning module and its `predict()` API.
 - [ ] Add `src/mlcast/modules/reconstruction.py` with a generic `ReconstructionModule` for any reconstruction model.
 - [ ] Keep `modules/` for training/task wrappers only; keep `models/` for pure architectures.
 
-5. Training experiment
+6. Training experiment
 - [ ] Add a new LDCast-specific training module containing `LDCastTrainingExperiment`.
 - [ ] Keep `convgru_training_experiment` as the existing ConvGRU forecasting example and one of the explicitly selected included CLI configs.
 - [ ] Stage 1 builds the reconstruction dataset, autoencoder model, and reconstruction module, then trains the autoencoder.
@@ -58,7 +75,7 @@
 - [ ] Reuse the same forecasting dataset abstraction in stage 2; do not add a separate latent dataset layer.
 - [ ] Add tests for shared object identity and stage sequencing.
 
-6. Audit and migration targets
+7. Audit and migration targets
 - [ ] Update CLI/help text in `src/mlcast/__main__.py` to require an explicit base config and list the included config entry points.
 - [ ] Rename `training_experiment` to `convgru_training_experiment` in `src/mlcast/config/base.py` and export it from `src/mlcast/config/__init__.py`.
 - [ ] Add the LDCast config entry point to `src/mlcast/config/__init__.py` alongside the existing ConvGRU example config.
