@@ -189,13 +189,13 @@ from mlcast.config.fiddlers import use_random_sampler
 
 # Minimal adapter: channel-stack past frames -> HalfUNet -> one step at a time.
 # The forecasting contract fixes input_steps, forecast_steps, and ensemble_size
-# at model initialization; NowcastLightningModule calls network(x).
+# at model initialization; this minimal deterministic adapter exposes one
+# ensemble member and NowcastLightningModule calls network(x).
 class HalfUNetNowcaster(nn.Module):
-    def __init__(self, input_steps: int = 6, forecast_steps: int = 12, ensemble_size: int = 1, num_vars: int = 1):
+    def __init__(self, input_steps: int = 6, forecast_steps: int = 12, num_vars: int = 1):
         super().__init__()
         self.input_steps = input_steps
         self.forecast_steps = forecast_steps
-        self.ensemble_size = ensemble_size
         self.num_vars = num_vars
         self.unet = HalfUNet(
             input_shape=(256, 256),
@@ -203,6 +203,10 @@ class HalfUNetNowcaster(nn.Module):
             out_channels=num_vars,
             settings=fdl.Config(HalfUNet.settings_kls),
         )
+
+    @property
+    def ensemble_size(self) -> int:
+        return 1
 
     @property
     def input_channels(self) -> int:
@@ -234,9 +238,12 @@ cfg.pl_module.network = fdl.Config(
     HalfUNetNowcaster,
     input_steps=cfg.data.input_steps,
     forecast_steps=cfg.data.forecast_steps,
-    ensemble_size=cfg.pl_module.network.ensemble_size,
     num_vars=len(cfg.data.sequence_dataset_factory.standard_names),
 )
+# The base ConvGRU config uses CRPS for ensemble forecasts; this adapter is
+# deterministic and exposes only one member, so use a deterministic loss.
+cfg.pl_module.loss_class = "mse"
+cfg.pl_module.loss_params = None
 
 train_from_config(cfg)
 ```
