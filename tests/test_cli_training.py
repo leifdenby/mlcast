@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fiddle._src.experimental.yaml_serialization import dump_yaml
 
-from mlcast.config import training_experiment
+from mlcast.config import convgru_training_experiment
 from mlcast.config.fiddlers import use_random_sampler
 
 
@@ -20,6 +20,8 @@ def test_cli_train_command(fp_test_dataset: Path, tmp_path: Path) -> None:
         "-m",
         "mlcast",
         "train",
+        "--config",
+        "config:convgru_training_experiment",
         "--config",
         "fiddler:use_random_sampler",
         "--config",
@@ -54,7 +56,7 @@ def test_cli_train_from_yaml_config(fp_test_dataset: Path, tmp_path: Path) -> No
     the dataset path) before dumping to YAML, so the subprocess call needs no
     additional --config flags. This exercises the pure load-from-YAML path.
     """
-    cfg = training_experiment.as_buildable()
+    cfg = convgru_training_experiment.as_buildable()
     # Switch to random sampler (no CSV required) and use the correct variable name
     use_random_sampler(cfg)
     cfg.data.dataset_factory.standard_names = ["rainfall_flux"]

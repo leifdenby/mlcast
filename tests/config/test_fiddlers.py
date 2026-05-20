@@ -1,9 +1,9 @@
-from mlcast.config import set_variables, toggle_masking, training_experiment
+from mlcast.config import convgru_training_experiment, set_variables, toggle_masking
 
 
-def test_fiddler_set_variables():
+def test_fiddler_set_variables() -> None:
     """Verify set_variables syncs dataset variables and network input_channels."""
-    cfg = training_experiment.as_buildable()
+    cfg = convgru_training_experiment.as_buildable()
 
     # Apply fiddler
     set_variables(cfg, ["rainfall_rate", "rainfall_flux"])
@@ -13,9 +13,9 @@ def test_fiddler_set_variables():
     assert cfg.pl_module.network.input_channels == 2
 
 
-def test_fiddler_toggle_masking():
+def test_fiddler_toggle_masking() -> None:
     """Verify toggle_masking syncs dataset mask return and module masked_loss."""
-    cfg = training_experiment.as_buildable()
+    cfg = convgru_training_experiment.as_buildable()
 
     # Disable masking
     toggle_masking(cfg, False)

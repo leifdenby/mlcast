@@ -67,11 +67,11 @@ reproduce runs exactly from a saved YAML file.
 
 ### Configuration model
 
-Training in mlcast is currently built around a single base configuration
-function, [`training_experiment`](src/mlcast/config/base.py), which defines the
-default ConvGRU ensemble nowcasting setup: dataset, data module, network,
+Training in mlcast is currently built around the included configuration
+function, [`convgru_training_experiment`](src/mlcast/config/base.py), which
+defines the ConvGRU ensemble nowcasting setup: dataset, data module, network,
 Lightning module, and trainer. Rather than writing a new config from scratch,
-the intended workflow is to start from this base and apply targeted
+the intended workflow is to start from this config and apply targeted
 modifications:
 
 - **`set:` overrides** — change a single scalar parameter (e.g. batch size,
@@ -82,32 +82,31 @@ modifications:
 - **direct graph edits** (Python API only) — replace a sub-object entirely,
   for example swapping in a different network architecture
 
-Any combination of these can be layered on top of the base config, and the
+Any combination of these can be layered on top of the selected config, and the
 fully resolved config is always saved to YAML alongside the training logs so
 runs can be reproduced exactly.
 
-The diagram below shows the full default config graph as built by
-[`training_experiment`](src/mlcast/config/base.py):
+The diagram below shows the full included ConvGRU config graph as built by
+[`convgru_training_experiment`](src/mlcast/config/base.py):
 
-![training_experiment config graph](docs/config_diagram.svg)
+![convgru_training_experiment config graph](docs/config_diagram.svg)
 
 ### Command-line interface
 
 Install the package and run:
 
 ```bash
-mlcast train
+mlcast train --config config:convgru_training_experiment
 ```
 
-This trains with the built-in [`training_experiment`](src/mlcast/config/base.py) defaults. All parameters
+This trains with the built-in [`convgru_training_experiment`](src/mlcast/config/base.py) config. All parameters
 are controlled via `--config` flags:
 
 | Prefix | Purpose | Example |
 |--------|---------|---------|
-| *(none)* | Use the built-in default config | `mlcast train` |
+| `config:` | Select an included `@auto_config` function | `--config config:convgru_training_experiment` |
 | `set:` | Override a single parameter | `--config set:data.batch_size=32` |
 | `fiddler:` | Apply a semantic mutator (multi-param change) | `--config fiddler:use_random_sampler` |
-| `config:` | Switch to a different `@auto_config` function | `--config=config:my_experiment` |
 | `path/to/config.yaml` | Load a previously saved config | `--config saved.yaml` |
 
 Multiple `--config` flags are applied in order and can be combined freely.
@@ -117,11 +116,13 @@ Multiple `--config` flags are applied in order and can be combined freely.
 ```bash
 # Override dataset path and batch size
 mlcast train \
+    --config config:convgru_training_experiment \
     --config set:data.dataset_factory.zarr_path=/data/radar.zarr \
     --config set:data.batch_size=32
 
 # Switch to random sampler and log to MLflow
 mlcast train \
+    --config config:convgru_training_experiment \
     --config fiddler:use_random_sampler \
     --config fiddler:use_mlflow_logger
 
@@ -131,7 +132,7 @@ mlcast train \
     --config set:trainer.max_epochs=50
 
 # Inspect the fully resolved config without starting training
-mlcast train --config fiddler:use_random_sampler --print_config_and_exit
+mlcast train --config config:convgru_training_experiment --config fiddler:use_random_sampler --print_config_and_exit
 ```
 
 Run `mlcast train --help` for a full list of examples and available fiddlers.
@@ -141,14 +142,14 @@ Run `mlcast train --help` for a full list of examples and available fiddlers.
 The Python API gives you full programmatic control over the config graph before
 anything is instantiated.
 
-**Run the default experiment with tweaks:**
+**Run the included ConvGRU experiment with tweaks:**
 
 ```python
 import fiddle as fdl
-from mlcast.config import training_experiment, train_from_config
+from mlcast.config import convgru_training_experiment, train_from_config
 from mlcast.config.fiddlers import use_random_sampler
 
-cfg = training_experiment.as_buildable()  # returns a fdl.Config graph — see src/mlcast/config/base.py
+cfg = convgru_training_experiment.as_buildable()  # returns a fdl.Config graph — see src/mlcast/config/base.py
 
 # Apply a fiddler to switch the dataset sampler
 use_random_sampler(cfg)
@@ -183,7 +184,7 @@ import torch
 import torch.nn as nn
 from jaxtyping import Float
 from mfai.torch.models import HalfUNet
-from mlcast.config import training_experiment, train_from_config
+from mlcast.config import convgru_training_experiment, train_from_config
 from mlcast.config.fiddlers import use_random_sampler
 
 # Minimal adapter: channel-stack past frames → HalfUNet → one step at a time.
@@ -226,7 +227,7 @@ class HalfUNetNowcaster(nn.Module):
             x_flat = torch.cat([x_flat[:, self.num_vars:], y], dim=1)
         return torch.cat(preds, dim=1)
 
-cfg = training_experiment.as_buildable()
+cfg = convgru_training_experiment.as_buildable()
 use_random_sampler(cfg)
 
 cfg.pl_module.network = fdl.Config(
@@ -270,7 +271,7 @@ mlcast/
 │   ├── callbacks.py                     # Training callbacks
 │   ├── visualization.py                 # TensorBoard image logging helpers
 │   ├── config/
-│   │   ├── base.py                      # Default training_experiment @auto_config
+│   │   ├── base.py                      # ConvGRU training config @auto_config
 │   │   ├── fiddlers.py                  # Semantic config mutators
 │   │   ├── consistency_checks.py        # Cross-parameter validation
 │   │   ├── loader.py                    # YAML config loader

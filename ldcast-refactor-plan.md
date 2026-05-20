@@ -1,13 +1,13 @@
 # LDCast Refactor Plan
 
 0. Config naming and CLI contract
-- [ ] Rename `training_experiment` to `convgru_training_experiment`.
-- [ ] Do not keep `training_experiment` as an alias.
+- [x] Rename `training_experiment` to `convgru_training_experiment`.
+- [x] Do not keep `training_experiment` as an alias.
 - [ ] Reserve `ldcast_training_experiment` as the top-level config name for the new two-stage LDCast workflow.
-- [ ] Require `mlcast train` users to provide an explicit base config via `--config config:<name>` or `--config /path/to/config.yaml`.
-- [ ] Update CLI help text to list the included config entry points explicitly.
-- [ ] Update all docs, examples, tests, and scripts to use `convgru_training_experiment` instead of `training_experiment`.
-- [ ] Treat `convgru_training_experiment` as the existing ConvGRU forecasting example, not as a special default config.
+- [x] Require `mlcast train` users to provide an explicit base config via `--config config:<name>` or `--config /path/to/config.yaml`.
+- [x] Update CLI help text to list the included config entry points explicitly.
+- [x] Update all docs, examples, tests, and scripts to use `convgru_training_experiment` instead of `training_experiment`.
+- [x] Treat `convgru_training_experiment` as the existing ConvGRU forecasting example, not as a special default config.
 
 1. Forecasting and reconstruction data
 - [ ] Move the existing sampled-sequence source-data logic into `src/mlcast/data/sequence.py`.
@@ -67,7 +67,7 @@
 
 6. Training experiment
 - [ ] Add a new LDCast-specific training module containing `LDCastTrainingExperiment`.
-- [ ] Keep `convgru_training_experiment` as the existing ConvGRU forecasting example and one of the explicitly selected included CLI configs.
+- [x] Keep `convgru_training_experiment` as the existing ConvGRU forecasting example and one of the explicitly selected included CLI configs.
 - [ ] Stage 1 builds the reconstruction dataset, autoencoder model, and reconstruction module, then trains the autoencoder.
 - [ ] Stage 2 reuses the same trained in-memory encoder instance, builds the diffusion dataset/model/module, then trains latent diffusion.
 - [ ] The shared Fiddle graph should define the encoder once and reference the same object in both stages, but no unresolved Fiddle objects should flow into actual `torch.nn.Module.__init__` calls.
@@ -76,11 +76,11 @@
 - [ ] Add tests for shared object identity and stage sequencing.
 
 7. Audit and migration targets
-- [ ] Update CLI/help text in `src/mlcast/__main__.py` to require an explicit base config and list the included config entry points.
-- [ ] Rename `training_experiment` to `convgru_training_experiment` in `src/mlcast/config/base.py` and export it from `src/mlcast/config/__init__.py`.
+- [x] Update CLI/help text in `src/mlcast/__main__.py` to require an explicit base config and list the included config entry points.
+- [x] Rename `training_experiment` to `convgru_training_experiment` in `src/mlcast/config/base.py` and export it from `src/mlcast/config/__init__.py`.
 - [ ] Add the LDCast config entry point to `src/mlcast/config/__init__.py` alongside the existing ConvGRU example config.
 - [ ] Keep `src/mlcast/config/orchestrator.py` compatible with both the existing single-stage `Experiment` and the new `LDCastTrainingExperiment` through a common `run()` surface.
-- [ ] Update docstrings and comments that currently imply `training_experiment` is the only experiment, including `src/mlcast/data/source_data_datamodule.py`, `src/mlcast/config/orchestrator.py`, and related config docs.
-- [ ] Update docs and scripts that still reference `training_experiment`, including `README.md` and `docs/generate_base_experiment_config_diagram.py`.
-- [ ] Keep existing ConvGRU CLI/config tests passing while adding separate tests for selecting the LDCast config explicitly.
+- [x] Update docstrings and comments that currently imply `training_experiment` is the only experiment, including `src/mlcast/data/source_data_datamodule.py`, `src/mlcast/config/orchestrator.py`, and related config docs.
+- [x] Update docs and scripts that still reference `training_experiment`, including `README.md` and `docs/generate_base_experiment_config_diagram.py`.
+- [x] Keep existing ConvGRU CLI/config tests passing while adding separate tests for selecting the LDCast config explicitly.
 - [ ] Add real but small-scale end-to-end tests with generated sample data for the autoencoder stage, diffusion stage, and full LDCast stage sequencing.
