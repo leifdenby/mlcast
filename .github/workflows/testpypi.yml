@@ -1,14 +1,9 @@
-name: package-release
+name: publish to testpypi
 
 on:
-  workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main
-  release:
-    types:
-      - published
 
 jobs:
   build:
@@ -32,11 +27,10 @@ jobs:
           path: dist/*
 
   publish:
-    name: publish package to PyPI
+    name: publish package to TestPyPI
     needs: build
-    if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
-    environment: pypi
+    environment: testpypi
     permissions:
       id-token: write
     steps:
@@ -45,8 +39,10 @@ jobs:
           name: package-dist
           path: dist
 
-      # Requires PyPI Trusted Publishing to be configured for this GitHub
-      # repository/workflow/environment on pypi.org. The `id-token: write`
+      # Requires TestPyPI Trusted Publishing to be configured for this GitHub
+      # repository/workflow/environment on test.pypi.org. The `id-token: write`
       # permission above lets this action request an OIDC token, in place of a
       # PYPI_TOKEN repository secret.
       - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
