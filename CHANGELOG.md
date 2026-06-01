@@ -5,16 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [v0.1.0](https://github.com/mlcast-community/mlcast-datasets/releases/tag/v0.1.0)
+## v0.1.0 - 2026-06-01
 
-This release establishes `mlcast` as a usable foundation for machine-learning weather
-nowcasting experiments. It brings together configurable experiment construction, Zarr-backed meteorological
-data loading, a PyTorch Lightning training loop, probabilistic ConvGRU nowcasting, and reproducible run
-configuration. With this release, users can train the built-in ConvGRU baseline from the command line,
-customize experiments through Fiddle configs and fiddlers, or replace the network with their own nowcasting
-architecture while keeping the surrounding data, training, logging, and reproducibility machinery.
+This release establishes `mlcast` as a usable foundation for machine-learning weather nowcasting experiments.
+It brings together configurable experiment construction, Zarr-backed meteorological data loading, a PyTorch
+Lightning training loop, probabilistic ConvGRU nowcasting, and reproducible run configuration. With this
+release, users can train the built-in ConvGRU baseline from the command line, customize experiments through
+Fiddle configs and fiddlers, or replace the network with their own nowcasting architecture while keeping the
+surrounding data, training, logging, and reproducibility machinery.
 
-Specific functionality included in this release:
+### Added
 
 - Fiddle-based experiment configuration centered on the default `training_experiment` graph, covering dataset
   setup, data module, network, Lightning module, optimizer, scheduler, callbacks, logger, and trainer.
@@ -41,3 +41,18 @@ Specific functionality included in this release:
   system metadata/metrics logging.
 - Documentation covering installation, CLI workflows, Python workflows, custom network integration, available
   fiddlers, project structure, and the ConvGRU architecture.
+
+### Changed
+
+- Training now centers on a single Fiddle-based experiment graph rather than the earlier ad hoc configuration
+  flow.
+- The CLI now uses `mlcast train` with nested `--config` overrides and named fiddlers for more reproducible
+  experiment changes.
+- The default training setup now uses the ConvGRU ensemble nowcasting pipeline as the primary supported
+  baseline.
+- Saved experiment configs are now persisted alongside runs for exact reproduction.
+
+## 0.0.1a4 - 2025-08-28
+
+This was the first published PyPI release of `mlcast`, establishing the initial installable package baseline with
+the early nowcasting training pipeline, core package layout, and initial public documentation.
