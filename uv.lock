@@ -2232,7 +2232,6 @@ wheels = [
 
 [[package]]
 name = "mlcast"
-version = "0.0.1a5"
 source = { editable = "." }
 dependencies = [
     { name = "absl-py" },

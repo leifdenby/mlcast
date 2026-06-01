@@ -1,0 +1,22 @@
+name: linting
+
+on:
+  # Run on every pushed branch.
+  push:
+  # Run on every pull request update.
+  pull_request:
+
+jobs:
+  linting:
+    name: "pre-commit hooks"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Run pre-commit through uv so CI uses the same project-managed environment
+      # as local development, including local hooks that invoke `uv run ...`.
+      - run: uv run pre-commit run --all-files

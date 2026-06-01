@@ -1,0 +1,52 @@
+name: package-release
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - main
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    name: build package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-dist
+          path: dist/*
+
+  publish:
+    name: publish package to PyPI
+    needs: build
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package-dist
+          path: dist
+
+      # Requires PyPI Trusted Publishing to be configured for this GitHub
+      # repository/workflow/environment on pypi.org. The `id-token: write`
+      # permission above lets this action request an OIDC token, in place of a
+      # PYPI_TOKEN repository secret.
+      - uses: pypa/gh-action-pypi-publish@release/v1
