@@ -47,15 +47,15 @@ uv sync --extra dev
 uv run pre-commit install
 ```
 
-### PyPI release (pinned, stable)
+### PyPI release
 
-Tagged releases have been published to PyPI and can be installed with pip, but recent changes mean that the CLI and API have changed significantly since the last release (`v0.0.1` as of writing), so this is not recommended for users who want to follow the latest development.
+Tagged releases are published to PyPI and can be installed with pip:
 
 ```bash
 pip install mlcast
 ```
 
-Note: The usage instructions below don't match the most recent pypi release (`v0.0.1a4` as of writing).
+For active development or access to unreleased changes, clone the repository and install locally with `uv` as described above.
 
 ## Usage
 
