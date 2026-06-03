@@ -2,17 +2,14 @@
 
 from .forecasting import (
     BaseForecastingTaskModule,
-    LatentDiffusionModule,
     LatentDiffusionTaskModule,
     OutputSpaceForecastingTaskModule,
 )
-from .reconstruction import ReconstructionModule, ReconstructionTaskModule
+from .reconstruction import ReconstructionTaskModule
 
 __all__ = [
     "BaseForecastingTaskModule",
-    "LatentDiffusionModule",
     "LatentDiffusionTaskModule",
     "OutputSpaceForecastingTaskModule",
-    "ReconstructionModule",
     "ReconstructionTaskModule",
 ]

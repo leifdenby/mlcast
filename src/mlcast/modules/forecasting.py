@@ -623,6 +623,3 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         """Restore raw diffusion weights after prediction when enabled."""
         if self.ema is not None:
             self.ema.restore()
-
-
-LatentDiffusionModule = LatentDiffusionTaskModule

@@ -12,7 +12,42 @@ from mlcast.losses import build_loss
 
 
 class ReconstructionTaskModule(pl.LightningModule):
-    """Generic reconstruction training wrapper.
+    """Lightning task module for reconstruction training.
+
+    Purpose
+    -------
+    This task module trains reconstruction models on tensor-only batches from
+    ``ReconstructionDataset``. It is intended for stage-1 reconstruction or
+    autoencoder training, where the model learns to reproduce normalized
+    sequence windows.
+
+    Ownership
+    ---------
+    This class owns:
+
+    - the reconstruction network
+    - the reconstruction loss defined by ``loss_class`` and ``loss_params``
+    - the optimizer and learning-rate scheduler factories
+
+    It does not own:
+
+    - source-data normalization rules
+    - forecasting-specific targets, masks, or ensemble behavior
+    - latent diffusion training or sampler-driven inference logic
+
+    Training behavior
+    -----------------
+    Each batch is a tensor-only reconstruction sample. The module uses that
+    tensor as both the model input and the reconstruction target, computes the
+    reconstruction loss directly in output space, and logs the resulting scalar
+    loss for the active split.
+
+    Inference behavior
+    ------------------
+    ``forward`` applies the reconstruction network to a normalized input tensor
+    and returns a reconstructed normalized tensor of the same shape. This
+    module does not implement forecasting-specific prediction helpers or any
+    sampler-based inference path.
 
     Parameters
     ----------
@@ -23,9 +58,11 @@ class ReconstructionTaskModule(pl.LightningModule):
     loss_params : dict or None, optional
         Keyword arguments for the loss constructor. Default is ``None``.
     optimizer : Callable[..., torch.optim.Optimizer] or None, optional
-        Optimizer factory. Default is ``None`` (Adam).
+        Optimizer factory used by :meth:`configure_optimizers`. Default is
+        ``None`` (Adam over ``self.parameters()``).
     lr_scheduler : Callable[..., torch.optim.lr_scheduler.LRScheduler] or None, optional
-        Learning-rate scheduler factory. Default is ``None``.
+        Learning-rate scheduler factory used by :meth:`configure_optimizers`.
+        Default is ``None``.
     """
 
     def __init__(
@@ -155,6 +192,3 @@ class ReconstructionTaskModule(pl.LightningModule):
             lr_scheduler = self.lr_scheduler_factory(optimizer)
             return {"optimizer": optimizer, "lr_scheduler": {"scheduler": lr_scheduler, "monitor": "val_loss"}}
         return {"optimizer": optimizer}
-
-
-ReconstructionModule = ReconstructionTaskModule
