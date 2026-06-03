@@ -214,9 +214,8 @@ from mlcast.config.fiddlers import use_random_sampler
 
 cfg = ldcast_training_experiment.as_buildable()
 
-# Both stages share the same dataset, so switch to random sampling once
-use_random_sampler(cfg.stage1)
-use_random_sampler(cfg.stage2)
+# Applied once — @applies_to_experiments walks both stages automatically
+use_random_sampler(cfg)
 
 # Override the diffusion noise schedule
 cfg.stage2.pl_module.diffusion_net.scheduler.timesteps = 20
