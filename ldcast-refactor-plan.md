@@ -87,8 +87,38 @@
 - [x] Update docs and scripts that still reference `training_experiment`, including `README.md` and `docs/generate_base_experiment_config_diagram.py`.
 - [x] Keep existing ConvGRU CLI/config tests passing while adding separate tests for selecting the LDCast config explicitly.
 - [ ] Add real but small-scale end-to-end tests with generated sample data for the autoencoder stage, diffusion stage, and full LDCast stage sequencing.
+- [ ] Align metric naming with TensorBoard conventions: use `/` as hierarchy separator and `rec_loss`/`loss` to distinguish stages — done (commit pending)
 
-## DMI alignment notes
+## 8. Align LDCast config with DMI/Martinbo reference
+
+### Optimizer
+- [ ] Switch both stages to `AdamW` (from `Adam`)
+- [ ] Set `betas=(0.5, 0.9)` for both stages
+- [ ] Set `weight_decay=1e-3` for both stages
+- [ ] Raise autoencoder LR to `1e-3`, keep diffusion LR at `1e-4`
+
+### LR scheduler
+- [ ] Reduce `ReduceLROnPlateau` factor to `0.25` (from `0.5`)
+- [ ] Reduce patience to `3` (from `10`)
+
+### EMA
+- [ ] Increase EMA decay to `0.9999` (from `0.999`)
+- [ ] Decide: EMA on full diffusion net (DMI) or denoiser only (Martinbo)
+
+### Early stopping
+- [ ] Reduce patience to `6` (from `20`)
+- [ ] Set `check_finite=False` on the diffusion stage
+
+### Model checkpointing
+- [ ] Increase `save_top_k` to `3` (from `1`)
+
+### Diffusion noise schedule
+- [ ] Increase `timesteps` to `1000` (from `20`)
+- [ ] Set linear beta schedule from `1e-4` to `2e-2`
+
+### Batch size and gradient accumulation
+- [ ] Reduce batch sizes (e.g. `batch_size=4` autoenc / `batch_size=1` diffusion)
+- [ ] Add `accumulate_grad_batches=2`
 
 The `ldcast-dmi/` reference implementation differs from our current
 `ldcast_training_experiment` config in several ways. Changes below would

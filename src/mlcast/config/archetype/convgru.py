@@ -70,9 +70,9 @@ def convgru_training_experiment() -> Experiment:
         accelerator="auto",
         max_epochs=100,
         callbacks=[
-            ModelCheckpoint(monitor="val_loss", save_top_k=1, mode="min"),
-            ModelCheckpoint(monitor="train_loss_epoch", save_top_k=1, mode="min"),
-            EarlyStopping(monitor="val_loss", patience=100, mode="min"),
+            ModelCheckpoint(monitor="val/loss", save_top_k=1, mode="min"),
+            ModelCheckpoint(monitor="train/loss_epoch", save_top_k=1, mode="min"),
+            EarlyStopping(monitor="val/loss", patience=100, mode="min"),
             LearningRateMonitor(logging_interval="step"),
         ],
         logger=TensorBoardLogger(save_dir="logs", name="mlcast"),

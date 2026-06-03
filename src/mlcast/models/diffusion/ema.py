@@ -28,11 +28,22 @@ class ExponentialMovingAverage:
     def update(self) -> None:
         """Update EMA shadow parameters from the current module parameters."""
         trainable_params = [parameter for parameter in self.module.parameters() if parameter.requires_grad]
-        for shadow_param, parameter in zip(self.shadow_params, trainable_params, strict=True):
+        for i, (shadow_param, parameter) in enumerate(zip(self.shadow_params, trainable_params, strict=True)):
+            if shadow_param.device != parameter.device:
+                self.shadow_params[i] = shadow_param.to(parameter.device)
+                shadow_param = self.shadow_params[i]
             shadow_param.mul_(self.decay).add_(parameter.detach(), alpha=1.0 - self.decay)
+
+    def _align_device(self) -> None:
+        """Move shadow parameters to the current device of the module's parameters."""
+        for i, shadow_param in enumerate(self.shadow_params):
+            ref_param = next(self.module.parameters())
+            if shadow_param.device != ref_param.device:
+                self.shadow_params[i] = shadow_param.to(ref_param.device)
 
     def apply(self) -> None:
         """Swap EMA parameters into the tracked module."""
+        self._align_device()
         trainable_params = [parameter for parameter in self.module.parameters() if parameter.requires_grad]
         self.backup_params = [parameter.detach().clone() for parameter in trainable_params]
         for parameter, shadow_param in zip(trainable_params, self.shadow_params, strict=True):
@@ -44,5 +55,7 @@ class ExponentialMovingAverage:
             raise RuntimeError("EMA restore() called before apply().")
         trainable_params = [parameter for parameter in self.module.parameters() if parameter.requires_grad]
         for parameter, backup_param in zip(trainable_params, self.backup_params, strict=True):
+            if backup_param.device != parameter.device:
+                backup_param = backup_param.to(parameter.device)
             parameter.data.copy_(backup_param.data)
         self.backup_params = None

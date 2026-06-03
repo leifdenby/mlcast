@@ -101,8 +101,8 @@ def ldcast_training_experiment() -> LDCastTrainingExperiment:
         accelerator="auto",
         max_epochs=20,
         callbacks=[
-            ModelCheckpoint(monitor="val_loss", save_top_k=1, mode="min"),
-            EarlyStopping(monitor="val_loss", patience=20, mode="min"),
+            ModelCheckpoint(monitor="val/rec_loss", save_top_k=1, mode="min"),
+            EarlyStopping(monitor="val/rec_loss", patience=20, mode="min"),
             LearningRateMonitor(logging_interval="step"),
         ],
         logger=TensorBoardLogger(save_dir="logs", name="mlcast_ldcast_stage1"),
@@ -136,8 +136,8 @@ def ldcast_training_experiment() -> LDCastTrainingExperiment:
         accelerator="auto",
         max_epochs=20,
         callbacks=[
-            ModelCheckpoint(monitor="val_loss", save_top_k=1, mode="min"),
-            EarlyStopping(monitor="val_loss", patience=20, mode="min"),
+            ModelCheckpoint(monitor="val/loss", save_top_k=1, mode="min"),
+            EarlyStopping(monitor="val/loss", patience=20, mode="min"),
             LearningRateMonitor(logging_interval="step"),
         ],
         logger=TensorBoardLogger(save_dir="logs", name="mlcast_ldcast_stage2"),

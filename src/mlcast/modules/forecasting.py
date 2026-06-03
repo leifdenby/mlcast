@@ -191,7 +191,7 @@ class BaseForecastingTaskModule(pl.LightningModule):
 
         if self.lr_scheduler_factory is not None:
             lr_scheduler = self.lr_scheduler_factory(optimizer)
-            return {"optimizer": optimizer, "lr_scheduler": {"scheduler": lr_scheduler, "monitor": "val_loss"}}
+            return {"optimizer": optimizer, "lr_scheduler": {"scheduler": lr_scheduler, "monitor": "val/loss"}}
         return {"optimizer": optimizer}
 
     def predict(self, past: torch.Tensor, standard_name: str = "rainfall_rate") -> np.ndarray[Any, Any]:
@@ -346,6 +346,9 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
         # (B, T, M*C, H, W), preserving backward compatibility with CRPS etc.
         preds_flat = rearrange(preds, "b t m c h w -> b t (m c) h w")
 
+        ensemble_size = getattr(self.network, "ensemble_size", 1)
+        ensemble_std = preds.std(dim=2).mean() if ensemble_size > 1 else None
+
         if self.hparams["masked_loss"]:
             mask = batch["target_mask"]
             loss = self.criterion(preds_flat, future, mask)
@@ -358,12 +361,10 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
                 log_dict, prog_bar=False, logger=True, on_step=(split == "train"), on_epoch=True, sync_dist=True
             )
 
-        self.log(f"{split}_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
+        self.log(f"{split}/loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
 
-        ensemble_size = getattr(self.network, "ensemble_size", 1)
-        if ensemble_size > 1:
-            ensemble_std = preds.std(dim=2).mean()
-            self.log(f"{split}_ensemble_std", ensemble_std, on_epoch=True, sync_dist=True)
+        if ensemble_std is not None:
+            self.log(f"{split}/ensemble_std", ensemble_std, on_epoch=True, sync_dist=True)
 
         if (
             split == "train"
@@ -577,7 +578,7 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
             input_latents = self.autoencoder.encode(batch["input"])
             target_latents = self.autoencoder.encode(batch["target"])
         loss = self.loss_fn(input_latents, target_latents)
-        self.log(f"{split}_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
+        self.log(f"{split}/loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
         return loss
 
     @property

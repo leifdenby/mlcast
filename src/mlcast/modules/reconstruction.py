@@ -121,7 +121,7 @@ class ReconstructionTaskModule(pl.LightningModule):
             self.log_dict(
                 log_dict, prog_bar=False, logger=True, on_step=(split == "train"), on_epoch=True, sync_dist=True
             )
-        self.log(f"{split}_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
+        self.log(f"{split}/rec_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
         return loss
 
     def training_step(self, batch: torch.Tensor, _batch_idx: int) -> torch.Tensor:
@@ -190,5 +190,5 @@ class ReconstructionTaskModule(pl.LightningModule):
 
         if self.lr_scheduler_factory is not None:
             lr_scheduler = self.lr_scheduler_factory(optimizer)
-            return {"optimizer": optimizer, "lr_scheduler": {"scheduler": lr_scheduler, "monitor": "val_loss"}}
+            return {"optimizer": optimizer, "lr_scheduler": {"scheduler": lr_scheduler, "monitor": "val/rec_loss"}}
         return {"optimizer": optimizer}

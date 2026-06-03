@@ -399,7 +399,7 @@
 <polygon fill="none" stroke="black" points="724,-75 724,-94 793,-94 793,-75 724,-75"/>
 <text text-anchor="start" x="746" y="-82" font-family="Courier,monospace" font-size="10.00">monitor</text>
 <polygon fill="none" stroke="black" points="793,-75 793,-94 862,-94 862,-75 793,-75"/>
-<text text-anchor="start" x="797" y="-82" font-family="Courier,monospace" font-size="10.00">&#39;val_loss&#39;</text>
+<text text-anchor="start" x="797" y="-82" font-family="Courier,monospace" font-size="10.00">&#39;val/loss&#39;</text>
 <polygon fill="#eeeeee" stroke="transparent" points="724,-56 724,-75 793,-75 793,-56 724,-56"/>
 <polygon fill="none" stroke="black" points="724,-56 724,-75 793,-75 793,-56 724,-56"/>
 <text text-anchor="start" x="728" y="-63" font-family="Courier,monospace" font-size="10.00">save_top_k</text>
@@ -427,7 +427,7 @@
 <polygon fill="none" stroke="black" points="880,-75 880,-94 949,-94 949,-75 880,-75"/>
 <text text-anchor="start" x="902" y="-82" font-family="Courier,monospace" font-size="10.00">monitor</text>
 <polygon fill="none" stroke="black" points="949,-75 949,-94 1066,-94 1066,-75 949,-75"/>
-<text text-anchor="start" x="953" y="-82" font-family="Courier,monospace" font-size="10.00">&#39;train_loss_epoch&#39;</text>
+<text text-anchor="start" x="953" y="-82" font-family="Courier,monospace" font-size="10.00">&#39;train/loss_epoch&#39;</text>
 <polygon fill="#eeeeee" stroke="transparent" points="880,-56 880,-75 949,-75 949,-56 880,-56"/>
 <polygon fill="none" stroke="black" points="880,-56 880,-75 949,-75 949,-56 880,-56"/>
 <text text-anchor="start" x="884" y="-63" font-family="Courier,monospace" font-size="10.00">save_top_k</text>
@@ -455,7 +455,7 @@
 <polygon fill="none" stroke="black" points="1251,-75 1251,-94 1308,-94 1308,-75 1251,-75"/>
 <text text-anchor="start" x="1261" y="-82" font-family="Courier,monospace" font-size="10.00">monitor</text>
 <polygon fill="none" stroke="black" points="1308,-75 1308,-94 1377,-94 1377,-75 1308,-75"/>
-<text text-anchor="start" x="1312" y="-82" font-family="Courier,monospace" font-size="10.00">&#39;val_loss&#39;</text>
+<text text-anchor="start" x="1312" y="-82" font-family="Courier,monospace" font-size="10.00">&#39;val/loss&#39;</text>
 <polygon fill="#eeeeee" stroke="transparent" points="1251,-56 1251,-75 1308,-75 1308,-56 1251,-56"/>
 <polygon fill="none" stroke="black" points="1251,-56 1251,-75 1308,-75 1308,-56 1251,-56"/>
 <text text-anchor="start" x="1255" y="-63" font-family="Courier,monospace" font-size="10.00">patience</text>
