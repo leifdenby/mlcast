@@ -3,7 +3,7 @@
 0. Config naming and CLI contract
 - [x] Rename `training_experiment` to `convgru_training_experiment`.
 - [x] Do not keep `training_experiment` as an alias.
-- [ ] Reserve `ldcast_training_experiment` as the top-level config name for the new two-stage LDCast workflow.
+- [x] Reserve `ldcast_training_experiment` as the top-level config name for the new two-stage LDCast workflow.
 - [x] Require `mlcast train` users to provide an explicit base config via `--config config:<name>` or `--config /path/to/config.yaml`.
 - [x] Update CLI help text to list the included config entry points explicitly.
 - [x] Update all docs, examples, tests, and scripts to use `convgru_training_experiment` instead of `training_experiment`.
@@ -68,22 +68,85 @@
 - [x] Keep `modules/` for task-level Lightning modules only; keep `models/` for pure architectures.
 
 6. Training experiment
-- [ ] Add a new LDCast-specific training module containing `LDCastTrainingExperiment`.
+- [x] Add a new LDCast-specific training module containing `LDCastTrainingExperiment`.
 - [x] Keep `convgru_training_experiment` as the existing ConvGRU forecasting example and one of the explicitly selected included CLI configs.
-- [ ] Stage 1 builds the reconstruction dataset, autoencoder model, and `ReconstructionTaskModule`, then trains the autoencoder.
-- [ ] Stage 2 reuses the same trained in-memory autoencoder instance, builds the diffusion dataset/model/`LatentDiffusionTaskModule`, then trains latent diffusion.
-- [ ] Stage 2 freezes the reused autoencoder parameters and optimizes only the latent diffusion task module's diffusion-network parameters.
-- [ ] The shared Fiddle graph should define the autoencoder once and reference the same object in both stages, but no unresolved Fiddle objects should flow into actual `torch.nn.Module.__init__` calls.
-- [ ] Stage-2 diffusion training uses the trained encoder to produce input and target latents; the trained decoder is retained for final forecast decoding but is not used in the stage-2 diffusion loss.
-- [ ] Reuse the same forecasting dataset abstraction in stage 2; do not add a separate latent dataset layer.
-- [ ] Add tests for shared object identity and stage sequencing.
+- [x] Stage 1 builds the reconstruction dataset, autoencoder model, and `ReconstructionTaskModule`, then trains the autoencoder.
+- [x] Stage 2 reuses the same trained in-memory autoencoder instance, builds the diffusion dataset/model/`LatentDiffusionTaskModule`, then trains latent diffusion.
+- [x] Stage 2 freezes the reused autoencoder parameters and optimizes only the latent diffusion task module's diffusion-network parameters.
+- [x] The shared Fiddle graph should define the autoencoder once and reference the same object in both stages, but no unresolved Fiddle objects should flow into actual `torch.nn.Module.__init__` calls.
+- [x] Stage-2 diffusion training uses the trained encoder to produce input and target latents; the trained decoder is retained for final forecast decoding but is not used in the stage-2 diffusion loss.
+- [x] Reuse the same forecasting dataset abstraction in stage 2; do not add a separate latent dataset layer.
+- [x] Add tests for shared object identity and stage sequencing.
 
 7. Audit and migration targets
 - [x] Update CLI/help text in `src/mlcast/__main__.py` to require an explicit base config and list the included config entry points.
 - [x] Rename `training_experiment` to `convgru_training_experiment` in `src/mlcast/config/base.py` and export it from `src/mlcast/config/__init__.py`.
-- [ ] Add the LDCast config entry point to `src/mlcast/config/__init__.py` alongside the existing ConvGRU example config.
-- [ ] Keep `src/mlcast/config/orchestrator.py` compatible with both the existing single-stage `Experiment` and the new `LDCastTrainingExperiment` through a common `run()` surface.
+- [x] Add the LDCast config entry point to `src/mlcast/config/__init__.py` alongside the existing ConvGRU example config.
+- [x] Keep `src/mlcast/config/orchestrator.py` compatible with both the existing single-stage `Experiment` and the new `LDCastTrainingExperiment` through a common `run()` surface.
 - [x] Update docstrings and comments that currently imply `training_experiment` is the only experiment, including `src/mlcast/data/source_data_datamodule.py`, `src/mlcast/config/orchestrator.py`, and related config docs.
 - [x] Update docs and scripts that still reference `training_experiment`, including `README.md` and `docs/generate_base_experiment_config_diagram.py`.
 - [x] Keep existing ConvGRU CLI/config tests passing while adding separate tests for selecting the LDCast config explicitly.
 - [ ] Add real but small-scale end-to-end tests with generated sample data for the autoencoder stage, diffusion stage, and full LDCast stage sequencing.
+
+## DMI alignment notes
+
+The `ldcast-dmi/` reference implementation differs from our current
+`ldcast_training_experiment` config in several ways. Changes below would
+align us more closely with DMI.
+
+### Optimizer
+- **DMI**: `AdamW` with `lr=1e-3` (autoenc) / `1e-4` (diffusion),
+  `betas=(0.5, 0.9)`, `weight_decay=1e-3` for **both** stages.
+- **Ours**: `Adam` with `lr=1e-4` for both stages, default betas, no
+  weight decay.
+- **To align**: switch to `AdamW`, use DMI betas/weight_decay, and raise
+  autoencoder LR to `1e-3`.
+
+### LR scheduler
+- **DMI**: `ReduceLROnPlateau(factor=0.25, patience=3)`, monitors
+  `val_rec_loss` (autoenc) / `val_loss_ema` (diffusion).
+- **Ours**: `ReduceLROnPlateau(factor=0.5, patience=10)`, monitors
+  `val_loss` for both stages.
+- **To align**: reduce factor to `0.25` and patience to `3`; use separate
+  monitor metrics per stage (autoenc → `val_loss`, diffusion → `val_loss`).
+
+### Learning rate warmup
+- **DMI**: Linear warmup support in diffusion stage (`lr_warmup`, default
+  0 — disabled). Autoencoder has none.
+- **Ours**: No warmup in either stage.
+- **To align**: no change needed unless LR warmup is desired.
+
+### EMA
+- **DMI**: `LitEma` with `decay=0.9999` (adaptive based on num_updates),
+  only on diffusion model weights. EMA weights swapped in for
+  validation/testing.
+- **Ours**: `ExponentialMovingAverage` with `decay=0.999` for diffusion
+  net, swapped in for val/test.
+- **To align**: increase EMA decay to `0.9999`.
+
+### Early stopping
+- **DMI**: patience `6`, monitors `val_rec_loss` / `val_loss_ema`,
+  `check_finite=False` on diffusion.
+- **Ours**: patience `20`, monitors `val_loss`.
+- **To align**: reduce patience to `6`; consider `check_finite=False`.
+
+### Model checkpointing
+- **DMI**: `save_top_k=3`, monitors `val_rec_loss` / `val_loss_ema`.
+- **Ours**: `save_top_k=1`, monitors `val_loss`.
+- **To align**: increase save_top_k to `3`.
+
+### Diffusion noise schedule
+- **DMI**: `timesteps=1000`, linear beta schedule from `1e-4` to `2e-2`.
+- **Ours**: `timesteps=20`, default linear schedule.
+- **To align**: increase to `timesteps=1000` and match beta range.
+
+### Batch size and gradient accumulation
+- **DMI**: `batch_size=4` (autoenc, example) / `batch_size=1` (diffusion,
+  example); `accumulate_grad_batches=2`.
+- **Ours**: `batch_size=16` / `8`; no gradient accumulation.
+- **To align**: reduce batch sizes and add `accumulate_grad_batches=2`.
+
+### DDP strategy
+- **DMI**: `DDPStrategy(find_unused_parameters=True)` on autoencoder.
+- **Ours**: default (no `DDPStrategy`).
+- **To align**: no change needed unless running DDP.

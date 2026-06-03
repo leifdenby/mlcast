@@ -14,12 +14,15 @@ from .fiddlers import (
     use_random_sampler,
     use_ratio_splits,
 )
+from .ldcast import LDCastTrainingExperiment, ldcast_training_experiment
 from .loader import load_yaml_config
 from .orchestrator import train_from_config
 
 __all__ = [
     "Experiment",
+    "LDCastTrainingExperiment",
     "convgru_training_experiment",
+    "ldcast_training_experiment",
     "validate_config",
     "train_from_config",
     "load_yaml_config",

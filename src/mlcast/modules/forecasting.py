@@ -507,6 +507,14 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         self.sampler = DiffusionSampler(diffusion_net)
         self.ema = ExponentialMovingAverage(diffusion_net, decay=ema_decay) if ema_decay is not None else None
 
+    def _freeze_autoencoder(self) -> None:
+        """Freeze the reused autoencoder before stage-2 use.
+
+        The same autoencoder instance is shared with stage-1 reconstruction
+        training, so freezing must happen when the diffusion stage begins rather
+        than in ``__init__``.
+        """
+        self.autoencoder.eval()
         for parameter in self.autoencoder.parameters():
             parameter.requires_grad = False
 
@@ -594,8 +602,13 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         if self.ema is not None:
             self.ema.update()
 
+    def on_fit_start(self) -> None:
+        """Freeze the reused autoencoder before diffusion training starts."""
+        self._freeze_autoencoder()
+
     def on_validation_start(self) -> None:
         """Swap EMA weights in before validation when enabled."""
+        self._freeze_autoencoder()
         if self.ema is not None:
             self.ema.apply()
 
@@ -606,6 +619,7 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
 
     def on_test_start(self) -> None:
         """Swap EMA weights in before testing when enabled."""
+        self._freeze_autoencoder()
         if self.ema is not None:
             self.ema.apply()
 
@@ -616,6 +630,7 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
 
     def on_predict_start(self) -> None:
         """Swap EMA weights in before prediction when enabled."""
+        self._freeze_autoencoder()
         if self.ema is not None:
             self.ema.apply()
 

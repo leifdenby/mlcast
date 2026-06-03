@@ -15,13 +15,13 @@ import fiddle as fdl
 from loguru import logger
 
 
-def validate_config(cfg: fdl.Config) -> None:
-    """Validate cross-system constraints on a Fiddle configuration before training.
+def _validate_forecasting_experiment_cfg(cfg: fdl.Config) -> None:
+    """Validate a single-stage forecasting experiment configuration.
 
     Parameters
     ----------
     cfg : fdl.Config
-        Fiddle configuration.
+        Fiddle configuration for a single forecasting experiment.
 
     Raises
     ------
@@ -34,8 +34,6 @@ def validate_config(cfg: fdl.Config) -> None:
     data = cfg.data
 
     # Contract 1: Network input_channels == len(sequence_dataset_factory.standard_names)
-    # If the network does not expose input_channels, emit a warning because
-    # this contract cannot be checked.
     num_vars = len(sequence_dataset_factory.standard_names)
     try:
         net_input_channels = network.input_channels
@@ -53,8 +51,6 @@ def validate_config(cfg: fdl.Config) -> None:
         )
 
     # Contract 2: Sequence dataset width must be divisible by 2 ** network.num_blocks
-    # If the network does not expose num_blocks, emit a warning because this
-    # contract cannot be checked.
     try:
         num_blocks = network.num_blocks
     except AttributeError:
@@ -120,3 +116,64 @@ def validate_config(cfg: fdl.Config) -> None:
             f"Contract 6 violated: network forecast_steps ({net_forecast_steps}) "
             f"must equal data.forecast_steps ({data.forecast_steps})."
         )
+
+
+def _validate_ldcast_training_experiment_cfg(cfg: fdl.Config) -> None:
+    """Validate a two-stage LDCast training experiment configuration.
+
+    Parameters
+    ----------
+    cfg : fdl.Config
+        Fiddle configuration for a two-stage LDCast experiment.
+
+    Raises
+    ------
+    ValueError
+        If any LDCast-specific configuration contract is violated.
+    """
+    stage1 = cfg.stage1
+    stage2 = cfg.stage2
+
+    autoencoder = stage1.pl_module.network
+    if autoencoder is not stage2.pl_module.autoencoder:
+        raise ValueError("LDCast contract violated: stage1 and stage2 must share the same autoencoder config object.")
+
+    stage1_data = stage1.data
+    stage2_data = stage2.data
+    if stage1_data.input_steps != stage2_data.input_steps:
+        raise ValueError(
+            "LDCast contract violated: stage1 and stage2 must use the same input_steps; "
+            f"got {stage1_data.input_steps} and {stage2_data.input_steps}."
+        )
+
+    stage2_module = stage2.pl_module
+    if stage2_data.forecast_steps != stage2_module.forecast_steps:
+        raise ValueError(
+            "LDCast contract violated: stage2 data.forecast_steps must match the latent diffusion task module; "
+            f"got {stage2_data.forecast_steps} and {stage2_module.forecast_steps}."
+        )
+
+    if len(stage1_data.sequence_dataset_factory.standard_names) != autoencoder.encoder.input_channels:
+        raise ValueError(
+            "LDCast contract violated: autoencoder encoder input_channels must match the number of source variables."
+        )
+
+
+def validate_config(cfg: fdl.Config) -> None:
+    """Validate cross-system constraints on a Fiddle configuration before training.
+
+    Parameters
+    ----------
+    cfg : fdl.Config
+        Fiddle configuration.
+
+    Raises
+    ------
+    ValueError
+        If any configuration contract is violated.
+    """
+    if hasattr(cfg, "stage1") and hasattr(cfg, "stage2"):
+        _validate_ldcast_training_experiment_cfg(cfg)
+        return
+
+    _validate_forecasting_experiment_cfg(cfg)
