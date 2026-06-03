@@ -50,28 +50,28 @@
 
 4. Diffusion model architecture
 - Diffusion model split:
-  - [ ] `src/mlcast/models/diffusion/conditioner.py` for latent conditioning blocks and `ConditionerNet`.
-  - [ ] `src/mlcast/models/diffusion/denoiser.py` for `DenoiserUNet` and timestep-aware helpers.
-  - [ ] `src/mlcast/models/diffusion/net.py` for `LatentDiffusionNet`.
-  - [ ] `src/mlcast/models/diffusion/forecasting.py` for `LatentDiffusionForecaster`, the diffusion-specific adapter configured with fixed `input_steps`, `forecast_steps`, and `ensemble_size` and exposing `forward(x)`.
-  - [ ] `src/mlcast/models/diffusion/scheduler.py`, `ema.py`, `sampler.py`, `loss.py` for diffusion support code.
+  - [x] `src/mlcast/models/diffusion/conditioner.py` for latent conditioning blocks and `ConditionerNet`.
+  - [x] `src/mlcast/models/diffusion/denoiser.py` for `DenoiserUNet` and timestep-aware helpers.
+  - [x] `src/mlcast/models/diffusion/net.py` for `LatentDiffusionNet`.
+  - [x] `src/mlcast/models/diffusion/scheduler.py`, `ema.py`, `sampler.py`, `loss.py` for diffusion support code.
 - Validation and tests:
-  - [ ] diffusion forecasting adapter API.
-  - [ ] diffusion model improves loss on a small generated latent dataset after a few training steps.
+  - [x] latent diffusion model API.
+  - [x] diffusion model improves loss on a small generated latent dataset after a few training steps.
 
 5. Task wrappers
 - [ ] Add `src/mlcast/modules/forecasting.py` and rename `NowcastLightningModule` to `ForecastingModule`.
 - [ ] Remove runtime `forecast_steps` and `ensemble_size` arguments from the forecasting Lightning module and its `predict()` API.
 - [ ] Add `src/mlcast/modules/reconstruction.py` with a generic `ReconstructionModule` for any reconstruction model.
+- [ ] Add a latent diffusion Lightning module that owns the trained autoencoder, trains diffusion in latent space, and handles decoded forecast inference.
 - [ ] Keep `modules/` for training/task wrappers only; keep `models/` for pure architectures.
 
 6. Training experiment
 - [ ] Add a new LDCast-specific training module containing `LDCastTrainingExperiment`.
 - [x] Keep `convgru_training_experiment` as the existing ConvGRU forecasting example and one of the explicitly selected included CLI configs.
 - [ ] Stage 1 builds the reconstruction dataset, autoencoder model, and reconstruction module, then trains the autoencoder.
-- [ ] Stage 2 reuses the same trained in-memory encoder instance, builds the diffusion dataset/model/module, then trains latent diffusion.
-- [ ] The shared Fiddle graph should define the encoder once and reference the same object in both stages, but no unresolved Fiddle objects should flow into actual `torch.nn.Module.__init__` calls.
-- [ ] The decoder is stage-1 only and is not shared into stage 2.
+- [ ] Stage 2 reuses the same trained in-memory autoencoder instance, builds the diffusion dataset/model/module, then trains latent diffusion.
+- [ ] The shared Fiddle graph should define the autoencoder once and reference the same object in both stages, but no unresolved Fiddle objects should flow into actual `torch.nn.Module.__init__` calls.
+- [ ] Stage-2 diffusion training uses the trained encoder to produce input and target latents; the trained decoder is retained for final forecast decoding but is not used in the stage-2 diffusion loss.
 - [ ] Reuse the same forecasting dataset abstraction in stage 2; do not add a separate latent dataset layer.
 - [ ] Add tests for shared object identity and stage sequencing.
 
