@@ -271,26 +271,22 @@ class HalfUNetNowcaster(nn.Module):
 
     @property
     def input_channels(self) -> int:
-        # Externally, the HalfUNetNowcaster respects the required input shape structure
-        # (batch, input_steps, num_vars, H, W), even though the internal U-Net is channel-stacked.
-        # Adding this property allows the config consistency checks to verify that
-        # the dataset and model agree on the expected number of input channels.
+        # Externally the model handles (batch, time, channels, height, width);
+        # internally the U-Net channel-stacks time into (batch, time*channels, ...).
+        # This property lets config consistency checks verify dataset-model agreement.
         return self.num_vars
 
     def forward(
         self,
-        x: Float[torch.Tensor, "batch input_steps in_channels H W"],
-    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels H W"]:
-        # channel-stack all input frames: (b, t, c, h, w) -> (b, t*c, h, w)
+        x: Float[torch.Tensor, "batch time channels height width"],
+    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]:
         x_flat = einops.rearrange(x, "b t c h w -> b (t c) h w")
         preds = []
         for _ in range(self.forecast_steps):
-            y = self.unet(x_flat)   # [B, num_vars, H, W]
-            preds.append(y.unsqueeze(1))
-            # slide window: drop the oldest timestep (first num_vars channels),
-            # append the latest prediction as the newest timestep
+            y = self.unet(x_flat)
+            preds.append(y)
             x_flat = torch.cat([x_flat[:, self.num_vars:], y], dim=1)
-        return torch.cat(preds, dim=1).unsqueeze(2)
+        return einops.rearrange(torch.stack(preds, dim=1), "b t c h w -> b t 1 c h w")
 
 cfg = convgru_training_experiment.as_buildable()
 use_random_sampler(cfg)
