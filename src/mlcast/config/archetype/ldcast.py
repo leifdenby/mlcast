@@ -87,22 +87,23 @@ def ldcast_training_experiment() -> LDCastTrainingExperiment:
         sequence_dataset_factory=sequence_dataset_factory,
         input_steps=input_steps,
         splits={"time": {"train": 0.70, "val": 0.15, "test": 0.15}},
-        batch_size=16,
+        batch_size=4,
         num_workers=8,
         pin_memory=True,
     )
     stage1_module = ReconstructionTaskModule(
         network=autoencoder,
         loss_class="mse",
-        optimizer=fdl.Partial(torch.optim.Adam, lr=1e-4, fused=True),
-        lr_scheduler=fdl.Partial(torch.optim.lr_scheduler.ReduceLROnPlateau, mode="min", factor=0.5, patience=10),
+        optimizer=fdl.Partial(torch.optim.AdamW, lr=1e-3, betas=(0.5, 0.9), weight_decay=1e-3, fused=True),
+        lr_scheduler=fdl.Partial(torch.optim.lr_scheduler.ReduceLROnPlateau, mode="min", factor=0.25, patience=3),
     )
     stage1_trainer = pl.Trainer(
         accelerator="auto",
         max_epochs=20,
+        accumulate_grad_batches=2,
         callbacks=[
-            ModelCheckpoint(monitor="val/rec_loss", save_top_k=1, mode="min"),
-            EarlyStopping(monitor="val/rec_loss", patience=20, mode="min"),
+            ModelCheckpoint(monitor="val/rec_loss", save_top_k=3, mode="min"),
+            EarlyStopping(monitor="val/rec_loss", patience=6, mode="min"),
             LearningRateMonitor(logging_interval="step"),
         ],
         logger=TensorBoardLogger(save_dir="logs", name="mlcast_ldcast_stage1"),
@@ -114,30 +115,31 @@ def ldcast_training_experiment() -> LDCastTrainingExperiment:
         forecast_steps=forecast_steps,
         return_mask=False,
         splits={"time": {"train": 0.70, "val": 0.15, "test": 0.15}},
-        batch_size=8,
+        batch_size=1,
         num_workers=8,
         pin_memory=True,
     )
     diffusion_net = LatentDiffusionNet(
         conditioner=ConditionerNet(latent_channels=32, hidden_channels=32, num_blocks=2),
         denoiser=DenoiserUNet(latent_channels=32, condition_channels=32, hidden_channels=32, num_blocks=2),
-        scheduler=DiffusionScheduler(timesteps=20),
+        scheduler=DiffusionScheduler(timesteps=1000),
     )
     stage2_module = LatentDiffusionTaskModule(
         autoencoder=autoencoder,
         diffusion_net=diffusion_net,
         forecast_steps=forecast_steps,
         ensemble_size=2,
-        optimizer=fdl.Partial(torch.optim.Adam, lr=1e-4, fused=True),
-        lr_scheduler=fdl.Partial(torch.optim.lr_scheduler.ReduceLROnPlateau, mode="min", factor=0.5, patience=10),
-        ema_decay=0.999,
+        optimizer=fdl.Partial(torch.optim.AdamW, lr=1e-4, betas=(0.5, 0.9), weight_decay=1e-3, fused=True),
+        lr_scheduler=fdl.Partial(torch.optim.lr_scheduler.ReduceLROnPlateau, mode="min", factor=0.25, patience=3),
+        ema_decay=0.9999,
     )
     stage2_trainer = pl.Trainer(
         accelerator="auto",
         max_epochs=20,
+        accumulate_grad_batches=2,
         callbacks=[
-            ModelCheckpoint(monitor="val/loss", save_top_k=1, mode="min"),
-            EarlyStopping(monitor="val/loss", patience=20, mode="min"),
+            ModelCheckpoint(monitor="val/loss", save_top_k=3, mode="min"),
+            EarlyStopping(monitor="val/loss", patience=6, mode="min", check_finite=False),
             LearningRateMonitor(logging_interval="step"),
         ],
         logger=TensorBoardLogger(save_dir="logs", name="mlcast_ldcast_stage2"),
