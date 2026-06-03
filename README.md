@@ -67,12 +67,18 @@ reproduce runs exactly from a saved YAML file.
 
 ### Configuration model
 
-Training in mlcast is currently built around the included configuration
-function, [`convgru_training_experiment`](src/mlcast/config/base.py), which
-defines the ConvGRU ensemble nowcasting setup: dataset, data module, network,
-Lightning module, and trainer. Rather than writing a new config from scratch,
-the intended workflow is to start from this config and apply targeted
-modifications:
+mlcast ships with two included configuration functions:
+
+- [`convgru_training_experiment`](src/mlcast/config/base.py) — defines a
+  single-stage ConvGRU ensemble nowcasting setup (dataset, data module, network,
+  Lightning module, trainer).
+- [`ldcast_training_experiment`](src/mlcast/config/ldcast.py) — defines a
+  two-stage LDCast setup: stage 1 trains an autoencoder on reconstruction
+  windows, stage 2 trains a latent diffusion model on the same autoencoder's
+  latent space.
+
+Rather than writing a new config from scratch, the intended workflow is to
+start from one of these configs and apply targeted modifications:
 
 - **`set:` overrides** — change a single scalar parameter (e.g. batch size,
   learning rate, number of epochs)
@@ -85,6 +91,16 @@ modifications:
 Any combination of these can be layered on top of the selected config, and the
 fully resolved config is always saved to YAML alongside the training logs so
 runs can be reproduced exactly.
+
+The diagrams below show the full included config graphs.
+
+**convgru_training_experiment:**
+
+![convgru_training_experiment config graph](docs/config_diagram.svg)
+
+**ldcast_training_experiment:**
+
+![ldcast_training_experiment config graph](docs/ldcast_config_diagram.svg)
 
 ### Design roles
 
@@ -109,25 +125,23 @@ owns the trained autoencoder reuse policy, decides that only diffusion-network
 parameters are optimized, computes diffusion loss in latent space, and handles
 decoded forecast inference.
 
-The diagram below shows the full included ConvGRU config graph as built by
-[`convgru_training_experiment`](src/mlcast/config/base.py):
-
-![convgru_training_experiment config graph](docs/config_diagram.svg)
-
 ### Command-line interface
 
 Install the package and run:
 
 ```bash
+# Single-stage ConvGRU nowcasting
 mlcast train --config config:convgru_training_experiment
+
+# Two-stage LDCast latent diffusion
+mlcast train --config config:ldcast_training_experiment
 ```
 
-This trains with the built-in [`convgru_training_experiment`](src/mlcast/config/base.py) config. All parameters
-are controlled via `--config` flags:
+All parameters are controlled via `--config` flags:
 
 | Prefix | Purpose | Example |
 |--------|---------|---------|
-| `config:` | Select an included `@auto_config` function | `--config config:convgru_training_experiment` |
+| `config:` | Select an included `@auto_config` function | `--config config:convgru_training_experiment` or `--config config:ldcast_training_experiment` |
 | `set:` | Override a single parameter | `--config set:data.batch_size=32` |
 | `fiddler:` | Apply a semantic mutator (multi-param change) | `--config fiddler:use_random_sampler` |
 | `path/to/config.yaml` | Load a previously saved config | `--config saved.yaml` |
@@ -153,6 +167,11 @@ mlcast train \
 mlcast train \
     --config logs/mlcast/version_0/config.yaml \
     --config set:trainer.max_epochs=50
+
+# Run two-stage LDCast training with a shorter diffusion schedule
+mlcast train \
+    --config config:ldcast_training_experiment \
+    --config set:stage2.pl_module.diffusion_net.scheduler.timesteps=20
 
 # Inspect the fully resolved config without starting training
 mlcast train --config config:convgru_training_experiment --config fiddler:use_random_sampler --print_config_and_exit
@@ -183,6 +202,26 @@ cfg.trainer.max_epochs = 50
 
 # Validates cross-parameter contracts, builds all objects, persists config
 # YAML to the active logger, then calls trainer.fit() + trainer.test()
+train_from_config(cfg)
+```
+
+**Run the included LDCast experiment with tweaks:**
+
+```python
+import fiddle as fdl
+from mlcast.config import ldcast_training_experiment, train_from_config
+from mlcast.config.fiddlers import use_random_sampler
+
+cfg = ldcast_training_experiment.as_buildable()
+
+# Both stages share the same dataset, so switch to random sampling once
+use_random_sampler(cfg.stage1.data)
+use_random_sampler(cfg.stage2.data)
+
+# Override the diffusion noise schedule
+cfg.stage2.pl_module.diffusion_net.scheduler.timesteps = 20
+
+# train_from_config applies to the full two-stage experiment
 train_from_config(cfg)
 ```
 
@@ -304,6 +343,7 @@ mlcast/
 │   ├── visualization.py                 # TensorBoard image logging helpers
 │   ├── config/
 │   │   ├── base.py                      # ConvGRU training config @auto_config
+│   │   ├── ldcast.py                    # LDCast two-stage config @auto_config
 │   │   ├── fiddlers.py                  # Semantic config mutators
 │   │   ├── consistency_checks.py        # Cross-parameter validation
 │   │   ├── loader.py                    # YAML config loader
@@ -314,8 +354,23 @@ mlcast/
 │   │   ├── forecasting.py               # Forecasting task dataset wrapper
 │   │   ├── reconstruction.py            # Reconstruction task dataset wrapper
 │   │   └── normalization.py             # Normalisation registry
-│   └── models/
-│       └── convgru.py                   # ConvGRU encoder-decoder
+│   ├── models/
+│   │   ├── convgru.py                   # ConvGRU encoder-decoder
+│   │   ├── autoencoder/
+│   │   │   ├── encoder.py               # Encoder
+│   │   │   ├── decoder.py               # Decoder
+│   │   │   └── net.py                   # AutoencoderNet composition
+│   │   └── diffusion/
+│   │       ├── conditioner.py           # ConditionerNet (context builder)
+│   │       ├── denoiser.py              # DenoiserUNet
+│   │       ├── scheduler.py             # Diffusion noise scheduler
+│   │       ├── sampler.py               # Inference-time sampling loop
+│   │       ├── ema.py                   # EMA weight tracking
+│   │       ├── loss.py                  # Diffusion loss
+│   │       └── net.py                   # LatentDiffusionNet composition
+│   └── modules/
+│       ├── forecasting.py               # Base + OutputSpace + LatentDiffusion task modules
+│       └── reconstruction.py            # ReconstructionTaskModule
 ├── tests/
 ├── pyproject.toml
 └── README.md
@@ -358,6 +413,88 @@ concatenated along the channel dimension.
 **Stochastic / ensemble variant** ([diagram source](https://docs.google.com/presentation/d/1U2Y9vZADXTsgQBNiWYAgOwYeMPVu7TOk/edit?slide=id.p7#slide=id.p7)):
 
 ![ConvGruModel stochastic architecture](docs/architectures/convgru-stochastic.png)
+
+
+### LatentDiffusionNet (LDCast)
+
+LDCast is a **two-stage** latent diffusion nowcasting system. Stage 1 trains an
+autoencoder on reconstruction windows; stage 2 trains a latent diffusion model
+that forecasts in the autoencoder's latent space and decodes forecasts back to
+data space.
+
+The architecture components live under `src/mlcast/models/autoencoder/` and
+`src/mlcast/models/diffusion/`. The task-level Lightning modules live under
+`src/mlcast/modules/` and are wired together by
+[`ldcast_training_experiment`](src/mlcast/config/ldcast.py).
+
+#### Stage 1 — Autoencoder reconstruction
+
+The autoencoder is built from an
+[`Encoder`](src/mlcast/models/autoencoder/encoder.py) and
+[`Decoder`](src/mlcast/models/autoencoder/decoder.py), composed by
+[`AutoencoderNet`](src/mlcast/models/autoencoder/net.py).
+
+- **Encoder** — a stack of `EncoderBlock` layers. Each block downsamples
+  spatial resolution via strided 3D convolution and doubles the channel count.
+  The final output is a latent tensor with shape
+  `(batch, latent_channels, time, latent_height, latent_width)`.
+- **Decoder** — a stack of `DecoderBlock` layers that mirror the encoder. Each
+  block upsamples spatial resolution via transposed 3D convolution and halves
+  the channel count, reconstructing the original input shape.
+
+The autoencoder is trained on overlapping temporal windows via
+[`ReconstructionDataset`](src/mlcast/data/reconstruction.py) and
+[`ReconstructionDataModule`](src/mlcast/data/datamodules.py). The
+[`ReconstructionTaskModule`](src/mlcast/modules/reconstruction.py) optimises
+the full autoencoder parameters against an MSE reconstruction loss.
+
+#### Stage 2 — Latent diffusion forecasting
+
+The latent diffusion model is built from a
+[`ConditionerNet`](src/mlcast/models/diffusion/conditioner.py),
+[`DenoiserUNet`](src/mlcast/models/diffusion/denoiser.py), and
+[`DiffusionScheduler`](src/mlcast/models/diffusion/scheduler.py), composed by
+[`LatentDiffusionNet`](src/mlcast/models/diffusion/net.py).
+
+- **ConditionerNet** — projects encoded input-history latents through a series
+  of residual 3D convolution blocks to produce a conditioning context for the
+  denoiser U-Net. This answers "what did the recent past look like in latent
+  space?"
+- **DenoiserUNet** — a timestep-aware U-Net with 3D convolutions over the
+  latent spatial dimensions (time dimension is preserved). It receives the
+  noisy target latent, a diffusion timestep embedding (sinusoidal), and the
+  conditioning context from the conditioner. The U-Net predicts the additive
+  noise (`eps` parameterization) that was applied to reach the current
+  timestep.
+- **DiffusionScheduler** — defines the forward diffusion noise schedule
+  (linear beta schedule by default) and provides the pre-computed alpha/beta
+  buffers used by the forward and reverse processes.
+
+Training uses a standard MSE diffusion loss (`DiffusionLoss` in
+`src/mlcast/models/diffusion/loss.py`): for each batch the input is encoded
+with the trained (frozen) encoder, the target is encoded with the same encoder,
+a random timestep is drawn per sample, noise is added to the target latents,
+and the denoiser is trained to predict the added noise.
+
+Inference uses a [`DiffusionSampler`](src/mlcast/models/diffusion/sampler.py)
+to progressively denoise random latents conditioned on encoded input history.
+The reverse diffusion loop steps backward through the schedule, and the final
+denoised latent is decoded back to data space by the trained decoder. When
+`ensemble_size > 1`, the process is repeated with fresh noise and the results
+are concatenated.
+
+#### Two-stage training experiment
+
+The [`ldcast_training_experiment`](src/mlcast/config/ldcast.py) auto-config
+orchestrates both stages:
+
+- Stage 1 builds a `ReconstructionDataModule`, `AutoencoderNet`, and
+  `ReconstructionTaskModule`, then calls `trainer.fit() + trainer.test()`.
+- Stage 2 reuses the **same trained autoencoder instance** (Fiddle graph
+  identity sharing), builds a `ForecastingDataModule` and
+  `LatentDiffusionTaskModule`, then calls `trainer.fit() + trainer.test()`.
+- The stage-2 module freezes the autoencoder on `fit_start` and optimises only
+  the diffusion-network parameters.
 
 
 ### Custom network interface

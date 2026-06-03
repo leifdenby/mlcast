@@ -150,3 +150,84 @@ align us more closely with DMI.
 - **DMI**: `DDPStrategy(find_unused_parameters=True)` on autoencoder.
 - **Ours**: default (no `DDPStrategy`).
 - **To align**: no change needed unless running DDP.
+
+## Martinbo alignment notes
+
+The `feat/ldcast-martinbo` branch differs from both our current config and
+the DMI reference in several ways.
+
+### Optimizer
+- **DMI**: `AdamW`, `lr=1e-3` / `1e-4`, `betas=(0.5, 0.9)`, `wd=1e-3`.
+- **Martinbo**: `AdamW`, `lr=1e-3` / `1e-4`, `betas=[0.5, 0.9]`, `wd=0.001`.
+- **Ours**: `Adam`, `lr=1e-4` for both, default betas, no weight decay.
+- **To align**: Martinbo matches DMI exactly — `AdamW`, per-stage LR, betas, and wd.
+
+### LR scheduler
+- **DMI**: `ReduceLROnPlateau(factor=0.25, patience=3)`, monitors
+  `val_rec_loss` / `val_loss_ema`.
+- **Martinbo**: `ReduceLROnPlateau(factor=0.25, patience=3)`, monitors
+  `val/rec_loss` / `val/loss`.
+- **Ours**: `ReduceLROnPlateau(factor=0.5, patience=10)`, monitors
+  `val_loss` for both stages.
+- **To align**: Martinbo matches DMI's factor/patience; only monitor-metric
+  naming differs (`val/rec_loss` vs `val_rec_loss`).
+
+### Learning rate warmup
+- **DMI**: Diffusion warmup support (`lr_warmup=0`, disabled by default).
+- **Martinbo**: No warmup support in either stage.
+- **Ours**: No warmup in either stage.
+- **To align**: no change needed (DMI also has it disabled by default).
+
+### EMA
+- **DMI**: `LitEma` with `decay=0.9999` (adaptive), on full diffusion model.
+- **Martinbo**: `EMA` with `decay=0.9999` (dynamic, adaptive), wraps
+  **denoiser only** (`store_device='cuda'`).
+- **Ours**: `ExponentialMovingAverage` with `decay=0.999`, on diffusion net.
+- **To align**: increase decay to `0.9999`; consider whether EMA should wrap
+  the full diffusion net or just the denoiser.
+
+### Early stopping
+- **DMI**: patience `6`, monitors `val_rec_loss` / `val_loss_ema`,
+  `check_finite=False` on diffusion.
+- **Martinbo**: patience `6`, monitors `val/loss_epoch` (both stages),
+  `check_finite=False`.
+- **Ours**: patience `20`, monitors `val_loss`.
+- **To align**: Martinbo matches DMI's patience and `check_finite=False`;
+  monitor naming differs (`val/loss_epoch` vs `val_loss_ema`).
+
+### Model checkpointing
+- **DMI**: `save_top_k=3`, monitors `val_rec_loss` / `val_loss_ema`.
+- **Martinbo**: Not explicitly configured in branch `config.yaml` (relies on
+  Lightning default, `save_top_k=1`).
+- **Ours**: `save_top_k=1`, monitors `val_loss`.
+- **To align**: Martinbo implicitly matches Ours on `save_top_k`; DMI differs
+  with `save_top_k=3`.
+
+### Diffusion noise schedule
+- **DMI**: `timesteps=1000`, linear beta `1e-4` to `2e-2`.
+- **Martinbo**: `timesteps=1000`, linear beta `1e-4` to `2e-2` (defaults,
+  config section is `{}`).
+- **Ours**: `timesteps=20`, default linear schedule.
+- **To align**: Martinbo matches DMI exactly — `timesteps=1000`, same beta range.
+
+### Batch size and gradient accumulation
+- **DMI**: `batch_size=4` / `1` (example configs), `accumulate_grad_batches=2`.
+- **Martinbo**: `batch_size=1` for both stages; no `accumulate_grad_batches`.
+- **Ours**: `batch_size=16` / `8`; no gradient accumulation.
+- **To align**: Martinbo uses smaller batches than both DMI and Ours; none
+  of the three agree on batch size strategy.
+
+### DDP strategy
+- **DMI**: `DDPStrategy(find_unused_parameters=True)` (autoenc) /
+  `DDPStrategy()` (diffusion).
+- **Martinbo**: `strategy='ddp'` (string), `sync_batchnorm=True`, `num_nodes=1`.
+- **Ours**: default (no `DDPStrategy`).
+- **To align**: no change needed unless running DDP.
+
+### Diffusion parameterization and loss
+- **DMI**: `parameterization="eps"`, `loss_type="l2"` (MSE).
+- **Martinbo**: `parametrization="eps"` (note: spelling difference),
+  `nn.MSELoss()`.
+- **Ours**: `parameterization="eps"` in `DiffusionLoss` (L2 via
+  `nn.MSELoss` reduction).
+- **To align**: All three agree on `eps` + MSE — no change needed.
