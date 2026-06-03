@@ -52,8 +52,8 @@
 <title>1</title>
 <polygon fill="#90ee90" stroke="transparent" points="62,-378.5 62,-397.5 295,-397.5 295,-378.5 62,-378.5"/>
 <polygon fill="none" stroke="black" points="62,-378.5 62,-397.5 295,-397.5 295,-378.5 62,-378.5"/>
-<text text-anchor="start" x="93" y="-386.5" font-family="Courier,monospace" font-size="8.00">Config:</text>
-<text text-anchor="start" x="125" y="-386.5" font-family="Courier,monospace" font-size="10.00"> NowcastLightningModule</text>
+<text text-anchor="start" x="96" y="-386.5" font-family="Courier,monospace" font-size="8.00">Config:</text>
+<text text-anchor="start" x="128" y="-386.5" font-family="Courier,monospace" font-size="10.00"> ForecastingTaskModule</text>
 <polygon fill="#eeeeee" stroke="transparent" points="62,-359.5 62,-378.5 143,-378.5 143,-359.5 62,-359.5"/>
 <polygon fill="none" stroke="black" points="62,-359.5 62,-378.5 143,-378.5 143,-359.5 62,-359.5"/>
 <text text-anchor="start" x="96" y="-366.5" font-family="Courier,monospace" font-size="10.00">network</text>

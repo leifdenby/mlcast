@@ -86,6 +86,29 @@ Any combination of these can be layered on top of the selected config, and the
 fully resolved config is always saved to YAML alongside the training logs so
 runs can be reproduced exactly.
 
+### Design roles
+
+mlcast separates pure architectures from task-level training wrappers.
+
+- `src/mlcast/models/`
+  Pure `torch.nn.Module` architectures and supporting components. These classes
+  define tensor transformations and reusable building blocks, but they do not
+  decide how training is run or which parameters are optimized.
+- `src/mlcast/modules/`
+  Task-level Lightning modules. These classes define what batch structure a
+  task consumes, what loss is computed, which parameters are optimized, and how
+  inference/prediction is exposed.
+
+In other words, architectures answer "how does this tensor get transformed?",
+while task modules answer "what is being trained, against what target, and over
+which parameters?"
+
+This distinction matters especially for latent diffusion. The diffusion
+architecture itself lives under `models/`, while the corresponding task module
+owns the trained autoencoder reuse policy, decides that only diffusion-network
+parameters are optimized, computes diffusion loss in latent space, and handles
+decoded forecast inference.
+
 The diagram below shows the full included ConvGRU config graph as built by
 [`convgru_training_experiment`](src/mlcast/config/base.py):
 
@@ -190,7 +213,7 @@ from mlcast.config.fiddlers import use_random_sampler
 # Minimal adapter: channel-stack past frames -> HalfUNet -> one step at a time.
 # The forecasting contract fixes input_steps, forecast_steps, and ensemble_size
 # at model initialization; this minimal deterministic adapter exposes one
-# ensemble member and NowcastLightningModule calls network(x).
+# ensemble member and ForecastingTaskModule calls network(x).
 class HalfUNetNowcaster(nn.Module):
     def __init__(self, input_steps: int = 6, forecast_steps: int = 12, num_vars: int = 1):
         super().__init__()

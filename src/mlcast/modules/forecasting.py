@@ -1,0 +1,518 @@
+"""Forecasting task-level Lightning module wrappers."""
+
+from abc import abstractmethod
+from collections.abc import Callable
+from typing import Any
+
+import numpy as np
+import pytorch_lightning as pl
+import torch
+from beartype import beartype
+from jaxtyping import Float, jaxtyped
+
+from mlcast.data.normalization import DENORMALIZATION_REGISTRY, NORMALIZATION_REGISTRY
+from mlcast.losses import build_loss
+from mlcast.models.autoencoder import AutoencoderNet
+from mlcast.models.diffusion.ema import ExponentialMovingAverage
+from mlcast.models.diffusion.loss import DiffusionLoss
+from mlcast.models.diffusion.net import LatentDiffusionNet
+from mlcast.models.diffusion.sampler import DiffusionSampler
+from mlcast.visualization import log_images
+
+
+class BaseForecastingTaskModule(pl.LightningModule):
+    """Base Lightning module for forecasting-shaped tasks.
+
+    Parameters
+    ----------
+    optimizer : Callable[..., torch.optim.Optimizer] or None, optional
+        Optimizer factory. Default is ``None`` (Adam).
+    lr_scheduler : Callable[..., torch.optim.lr_scheduler.LRScheduler] or None, optional
+        Learning-rate scheduler factory. Default is ``None``.
+    """
+
+    def __init__(
+        self,
+        optimizer: Callable[..., torch.optim.Optimizer] | None = None,
+        lr_scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | None = None,
+    ) -> None:
+        super().__init__()
+        self.optimizer_factory = optimizer
+        self.lr_scheduler_factory = lr_scheduler
+
+    @property
+    @abstractmethod
+    def trainable_parameters(self) -> list[torch.nn.Parameter]:
+        """Return the parameters optimized for this forecasting task.
+
+        Returns
+        -------
+        list of torch.nn.Parameter
+            Trainable parameters owned by the concrete forecasting task.
+        """
+
+    @abstractmethod
+    def compute_loss(self, batch: dict[str, torch.Tensor], split: str = "train") -> torch.Tensor:
+        """Compute and log loss for one forecasting batch.
+
+        Parameters
+        ----------
+        batch : dict of str to torch.Tensor
+            Forecasting batch.
+        split : str, optional
+            Current data split. Default is ``"train"``.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar task loss.
+        """
+
+    @jaxtyped(typechecker=beartype)
+    def predict_normalized(
+        self,
+        x: Float[torch.Tensor, "batch time channels height width"],
+    ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
+        """Predict normalized forecasts from normalized inputs.
+
+        Parameters
+        ----------
+        x : Float[torch.Tensor, "batch time channels height width"]
+            Normalized forecasting input.
+
+        Returns
+        -------
+        Float[torch.Tensor, "batch forecast_steps out_channels height width"]
+            Normalized forecast tensor.
+        """
+        return self(x)
+
+    def training_step(self, batch: dict[str, torch.Tensor], _batch_idx: int) -> torch.Tensor:
+        """Execute a training step.
+
+        Parameters
+        ----------
+        batch : dict of str to torch.Tensor
+            Forecasting batch.
+        _batch_idx : int
+            Batch index supplied by Lightning.
+
+        Returns
+        -------
+        torch.Tensor
+            Training loss.
+        """
+        return self.compute_loss(batch, split="train")
+
+    def validation_step(self, batch: dict[str, torch.Tensor], _batch_idx: int) -> torch.Tensor:
+        """Execute a validation step.
+
+        Parameters
+        ----------
+        batch : dict of str to torch.Tensor
+            Forecasting batch.
+        _batch_idx : int
+            Batch index supplied by Lightning.
+
+        Returns
+        -------
+        torch.Tensor
+            Validation loss.
+        """
+        return self.compute_loss(batch, split="val")
+
+    def test_step(self, batch: dict[str, torch.Tensor], _batch_idx: int) -> torch.Tensor:
+        """Execute a test step.
+
+        Parameters
+        ----------
+        batch : dict of str to torch.Tensor
+            Forecasting batch.
+        _batch_idx : int
+            Batch index supplied by Lightning.
+
+        Returns
+        -------
+        torch.Tensor
+            Test loss.
+        """
+        return self.compute_loss(batch, split="test")
+
+    def configure_optimizers(self) -> Any:
+        """Configure optimizer and optional scheduler.
+
+        Returns
+        -------
+        Any
+            PyTorch Lightning optimizer configuration.
+        """
+        parameters = self.trainable_parameters
+        if self.optimizer_factory is not None:
+            optimizer = self.optimizer_factory(parameters)
+        else:
+            optimizer = torch.optim.Adam(parameters)
+
+        if self.lr_scheduler_factory is not None:
+            lr_scheduler = self.lr_scheduler_factory(optimizer)
+            return {"optimizer": optimizer, "lr_scheduler": {"scheduler": lr_scheduler, "monitor": "val_loss"}}
+        return {"optimizer": optimizer}
+
+    def predict(self, past: torch.Tensor, standard_name: str = "rainfall_rate") -> np.ndarray[Any, Any]:
+        """Generate unnormalized forecasts from unnormalized past observations.
+
+        Parameters
+        ----------
+        past : torch.Tensor
+            Past observations with shape ``(T, H, W)``.
+        standard_name : str, optional
+            CF standard name that selects normalization and denormalization
+            functions. Default is ``"rainfall_rate"``.
+
+        Returns
+        -------
+        np.ndarray
+            Forecast array shaped ``(ensemble_size, forecast_steps, H, W)`` for
+            single-channel outputs.
+        """
+        if len(past.shape) != 3:
+            raise ValueError("Input must be of shape (T, H, W)")
+
+        past_clean = np.nan_to_num(past.cpu().numpy())
+        past_clean = past_clean[np.newaxis, :, np.newaxis, ...]
+        norm_func = NORMALIZATION_REGISTRY[standard_name]
+        norm_past = norm_func(past_clean)
+
+        x = torch.from_numpy(norm_past).to(self.device)
+        self.eval()
+        with torch.no_grad():
+            preds_tensor = self.predict_normalized(x)
+
+        preds_np: np.ndarray[Any, Any] = preds_tensor.cpu().numpy()
+        denorm_func = DENORMALIZATION_REGISTRY[standard_name]
+        preds_np = denorm_func(preds_np)
+        preds_np = preds_np.squeeze(0)
+        preds_np = np.swapaxes(preds_np, 0, 1)
+        return preds_np
+
+
+class ForecastingTaskModule(BaseForecastingTaskModule):
+    """Generic PyTorch Lightning module for direct forecasting tasks.
+
+    Parameters
+    ----------
+    network : torch.nn.Module
+        Forecasting network to train.
+    loss_class : type[torch.nn.Module] or str, optional
+        Loss function class or registry name. Default is ``"mse"``.
+    loss_params : dict or None, optional
+        Keyword arguments for the loss constructor. Default is ``None``.
+    masked_loss : bool, optional
+        Whether to use masked-loss computation with ``target_mask`` from the
+        batch. Default is ``False``.
+    optimizer : Callable[..., torch.optim.Optimizer] or None, optional
+        Optimizer factory. Default is ``None`` (Adam).
+    lr_scheduler : Callable[..., torch.optim.lr_scheduler.LRScheduler] or None, optional
+        Learning-rate scheduler factory. Default is ``None``.
+    """
+
+    def __init__(
+        self,
+        network: torch.nn.Module,
+        loss_class: type[torch.nn.Module] | str = "mse",
+        loss_params: dict[str, Any] | None = None,
+        masked_loss: bool = False,
+        optimizer: Callable[..., torch.optim.Optimizer] | None = None,
+        lr_scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | None = None,
+    ) -> None:
+        super().__init__(optimizer=optimizer, lr_scheduler=lr_scheduler)
+        self.save_hyperparameters("loss_class", "loss_params", "masked_loss")
+        self.network = network
+        self.criterion = build_loss(loss_class=loss_class, loss_params=loss_params, masked_loss=masked_loss)
+        self.log_images_iterations = [50, 100, 200, 500, 750, 1000, 2000, 5000]
+
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch time channels height width"],
+    ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
+        """Run the forecasting network.
+
+        Parameters
+        ----------
+        x : Float[torch.Tensor, "batch time channels height width"]
+            Normalized input history tensor.
+
+        Returns
+        -------
+        Float[torch.Tensor, "batch forecast_steps out_channels height width"]
+            Normalized forecast tensor.
+        """
+        return self.network(x)
+
+    def compute_loss(self, batch: dict[str, torch.Tensor], split: str = "train") -> torch.Tensor:
+        """Compute and log forecasting loss for one batch.
+
+        Parameters
+        ----------
+        batch : dict of str to torch.Tensor
+            Forecasting batch containing ``input`` and ``target`` tensors, and
+            optionally ``target_mask`` when masked loss is enabled.
+        split : str, optional
+            Current data split. Default is ``"train"``.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar loss tensor.
+        """
+        past = batch["input"]
+        future = batch["target"]
+        preds = self(past).clamp(min=-1, max=1)
+
+        if self.hparams["masked_loss"]:
+            mask = batch["target_mask"]
+            loss = self.criterion(preds, future, mask)
+        else:
+            loss = self.criterion(preds, future)
+
+        if isinstance(loss, tuple):
+            loss, log_dict = loss
+            self.log_dict(
+                log_dict, prog_bar=False, logger=True, on_step=(split == "train"), on_epoch=True, sync_dist=True
+            )
+
+        self.log(f"{split}_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
+
+        ensemble_size = getattr(self.network, "ensemble_size", 1)
+        if ensemble_size > 1:
+            ensemble_std = preds.std(dim=2).mean()
+            self.log(f"{split}_ensemble_std", ensemble_std, on_epoch=True, sync_dist=True)
+
+        if (
+            split == "train"
+            and self.logger is not None
+            and getattr(self.logger, "experiment", None) is not None
+            and (
+                self.global_step in self.log_images_iterations or self.global_step % self.log_images_iterations[-1] == 0
+            )
+        ):
+            log_images(
+                past=past,
+                future=future,
+                preds=preds,
+                logger=self.logger,  # type: ignore[arg-type]
+                global_step=self.global_step,
+                ensemble_size=ensemble_size,
+                split=split,
+            )
+        return loss
+
+    @property
+    def trainable_parameters(self) -> list[torch.nn.Parameter]:
+        """Return the forecasting network parameters.
+
+        Returns
+        -------
+        list of torch.nn.Parameter
+            Parameters optimized for direct forecasting.
+        """
+        return list(self.network.parameters())
+
+    @classmethod
+    def from_checkpoint(cls, checkpoint_path: str, device: str = "cpu") -> "ForecastingTaskModule":
+        """Load a forecasting task module from checkpoint.
+
+        Parameters
+        ----------
+        checkpoint_path : str
+            Path to the saved Lightning checkpoint.
+        device : str, optional
+            Device to map parameters onto. Default is ``"cpu"``.
+
+        Returns
+        -------
+        ForecastingTaskModule
+            Loaded forecasting task module.
+        """
+        return cls.load_from_checkpoint(
+            checkpoint_path,
+            map_location=torch.device(device),
+            strict=True,
+            weights_only=False,
+        )
+
+
+ForecastingModule = ForecastingTaskModule
+
+
+class LatentDiffusionTaskModule(BaseForecastingTaskModule):
+    """Train latent diffusion in latent space and decode forecasts for inference.
+
+    Parameters
+    ----------
+    autoencoder : AutoencoderNet
+        Trained autoencoder reused from stage 1. The encoder is used during
+        stage-2 training to map forecasting inputs and targets into latent
+        space. The decoder is retained for forecast inference but is not used in
+        the stage-2 diffusion loss.
+    diffusion_net : LatentDiffusionNet
+        Latent diffusion architecture to train.
+    forecast_steps : int
+        Number of forecast timesteps decoded during inference.
+    ensemble_size : int, optional
+        Number of ensemble members decoded during inference. Default is ``1``.
+    loss : DiffusionLoss or None, optional
+        Latent diffusion loss module. If ``None``, ``DiffusionLoss`` is built
+        from ``diffusion_net``. Default is ``None``.
+    optimizer : Callable[..., torch.optim.Optimizer] or None, optional
+        Optimizer factory. Default is ``None`` (Adam).
+    lr_scheduler : Callable[..., torch.optim.lr_scheduler.LRScheduler] or None, optional
+        Learning-rate scheduler factory. Default is ``None``.
+    ema_decay : float or None, optional
+        If provided, track an exponential moving average of diffusion-net
+        parameters with this decay. Default is ``None``.
+    """
+
+    def __init__(
+        self,
+        autoencoder: AutoencoderNet,
+        diffusion_net: LatentDiffusionNet,
+        forecast_steps: int,
+        ensemble_size: int = 1,
+        loss: DiffusionLoss | None = None,
+        optimizer: Callable[..., torch.optim.Optimizer] | None = None,
+        lr_scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | None = None,
+        ema_decay: float | None = None,
+    ) -> None:
+        super().__init__(optimizer=optimizer, lr_scheduler=lr_scheduler)
+        if forecast_steps < 1:
+            raise ValueError(f"forecast_steps ({forecast_steps}) must be at least 1.")
+        if ensemble_size < 1:
+            raise ValueError(f"ensemble_size ({ensemble_size}) must be at least 1.")
+
+        self.save_hyperparameters("forecast_steps", "ensemble_size", "ema_decay")
+        self.autoencoder = autoencoder
+        self.diffusion_net = diffusion_net
+        self.loss_fn = loss if loss is not None else DiffusionLoss(diffusion_net)
+        self.sampler = DiffusionSampler(diffusion_net)
+        self.ema = ExponentialMovingAverage(diffusion_net, decay=ema_decay) if ema_decay is not None else None
+
+        for parameter in self.autoencoder.parameters():
+            parameter.requires_grad = False
+
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch input_steps channels height width"],
+    ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
+        """Generate decoded forecasts from normalized input histories.
+
+        Parameters
+        ----------
+        x : Float[torch.Tensor, "batch input_steps channels height width"]
+            Normalized input history tensor.
+
+        Returns
+        -------
+        Float[torch.Tensor, "batch forecast_steps out_channels height width"]
+            Decoded normalized forecast tensor with ensemble members
+            concatenated along the channel dimension.
+        """
+        input_latents = self.autoencoder.encode(x)
+        repeated_input_latents = input_latents.repeat_interleave(self.hparams["ensemble_size"], dim=0)
+        latent_shape = (
+            x.shape[0] * self.hparams["ensemble_size"],
+            input_latents.shape[1],
+            self.hparams["forecast_steps"],
+            input_latents.shape[3],
+            input_latents.shape[4],
+        )
+        forecast_latents = self.sampler.sample(repeated_input_latents, latent_shape)
+        decoded = self.autoencoder.decode(forecast_latents)
+        batch, time, channels, height, width = decoded.shape
+        decoded = decoded.reshape(x.shape[0], self.hparams["ensemble_size"], time, channels, height, width)
+        return decoded.permute(0, 2, 1, 3, 4, 5).reshape(
+            x.shape[0], time, self.hparams["ensemble_size"] * channels, height, width
+        )
+
+    def compute_loss(self, batch: dict[str, torch.Tensor], split: str = "train") -> torch.Tensor:
+        """Compute latent diffusion loss for a forecasting batch.
+
+        Parameters
+        ----------
+        batch : dict of str to torch.Tensor
+            Forecasting batch containing ``input`` and ``target`` tensors.
+        split : str, optional
+            Current data split. Default is ``"train"``.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar latent diffusion loss.
+        """
+        with torch.no_grad():
+            input_latents = self.autoencoder.encode(batch["input"])
+            target_latents = self.autoencoder.encode(batch["target"])
+        loss = self.loss_fn(input_latents, target_latents)
+        self.log(f"{split}_loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
+        return loss
+
+    @property
+    def trainable_parameters(self) -> list[torch.nn.Parameter]:
+        """Return only the diffusion-network parameters.
+
+        Returns
+        -------
+        list of torch.nn.Parameter
+            Parameters optimized during stage-2 latent diffusion training.
+        """
+        return list(self.diffusion_net.parameters())
+
+    def on_train_batch_end(self, outputs: Any, batch: Any, batch_idx: int) -> None:
+        """Update EMA after each training batch when enabled.
+
+        Parameters
+        ----------
+        outputs : Any
+            Lightning training outputs.
+        batch : Any
+            Batch passed to the training step.
+        batch_idx : int
+            Batch index supplied by Lightning.
+        """
+        del outputs, batch, batch_idx
+        if self.ema is not None:
+            self.ema.update()
+
+    def on_validation_start(self) -> None:
+        """Swap EMA weights in before validation when enabled."""
+        if self.ema is not None:
+            self.ema.apply()
+
+    def on_validation_end(self) -> None:
+        """Restore raw diffusion weights after validation when enabled."""
+        if self.ema is not None:
+            self.ema.restore()
+
+    def on_test_start(self) -> None:
+        """Swap EMA weights in before testing when enabled."""
+        if self.ema is not None:
+            self.ema.apply()
+
+    def on_test_end(self) -> None:
+        """Restore raw diffusion weights after testing when enabled."""
+        if self.ema is not None:
+            self.ema.restore()
+
+    def on_predict_start(self) -> None:
+        """Swap EMA weights in before prediction when enabled."""
+        if self.ema is not None:
+            self.ema.apply()
+
+    def on_predict_end(self) -> None:
+        """Restore raw diffusion weights after prediction when enabled."""
+        if self.ema is not None:
+            self.ema.restore()
+
+
+LatentDiffusionModule = LatentDiffusionTaskModule
