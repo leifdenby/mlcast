@@ -3,7 +3,7 @@ import torch
 
 from mlcast.models.autoencoder import AutoencoderNet, Decoder, Encoder
 from mlcast.models.diffusion import ConditionerNet, DenoiserUNet, DiffusionScheduler, LatentDiffusionNet
-from mlcast.modules.forecasting import ForecastingTaskModule, LatentDiffusionTaskModule
+from mlcast.modules.forecasting import LatentDiffusionTaskModule, OutputSpaceForecastingTaskModule
 from mlcast.modules.reconstruction import ReconstructionTaskModule
 
 
@@ -26,8 +26,8 @@ def test_reconstruction_module_uses_batch_as_target() -> None:
     assert loss.ndim == 0
 
 
-def test_forecasting_task_module_trainable_parameters_match_network() -> None:
-    """ForecastingTaskModule should optimize the forecasting network parameters."""
+def test_output_space_forecasting_task_module_trainable_parameters_match_network() -> None:
+    """OutputSpaceForecastingTaskModule should optimize the forecasting network parameters."""
 
     class TinyForecastNetwork(torch.nn.Module):
         def __init__(self) -> None:
@@ -38,7 +38,7 @@ def test_forecasting_task_module_trainable_parameters_match_network() -> None:
             return x
 
     network = TinyForecastNetwork()
-    module = ForecastingTaskModule(network=network, loss_class="mse")
+    module = OutputSpaceForecastingTaskModule(network=network, loss_class="mse")
 
     assert module.trainable_parameters == list(network.parameters())
 

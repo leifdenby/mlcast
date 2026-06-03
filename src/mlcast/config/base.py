@@ -32,7 +32,7 @@ from pytorch_lightning.loggers import TensorBoardLogger
 from ..data.datamodules import ForecastingDataModule
 from ..data.sequence import SourceDataPrecomputedSequenceDataset
 from ..models.convgru import ConvGruModel
-from ..modules.forecasting import ForecastingTaskModule
+from ..modules.forecasting import OutputSpaceForecastingTaskModule
 
 
 @dataclass
@@ -91,7 +91,7 @@ def convgru_training_experiment() -> Experiment:
         noisy_decoder=False,
     )
 
-    pl_module = ForecastingTaskModule(
+    pl_module = OutputSpaceForecastingTaskModule(
         network=network,
         loss_class="crps",
         loss_params={"temporal_lambda": 0.01},

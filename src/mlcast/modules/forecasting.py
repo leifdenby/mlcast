@@ -23,6 +23,42 @@ from mlcast.visualization import log_images
 class BaseForecastingTaskModule(pl.LightningModule):
     """Base Lightning module for forecasting-shaped tasks.
 
+    Purpose
+    -------
+    This class provides the common PyTorch Lightning plumbing shared by
+    forecasting-oriented task modules. It centralizes the optimizer and
+    scheduler configuration interface, the train/validation/test step routing,
+    and the normalization-aware prediction helper used by forecasting tasks.
+
+    Ownership
+    ---------
+    This base class owns:
+
+    - optimizer and scheduler factories
+    - generic Lightning step orchestration
+    - normalization and denormalization logic for ``predict``
+
+    It does not own:
+
+    - a specific forecasting architecture
+    - a concrete task loss
+    - the choice of which parameters are trainable
+    - any task-specific inference logic beyond normalized I/O handling
+
+    Training behavior
+    -----------------
+    Training, validation, and test steps all delegate to the subclass hook
+    :meth:`compute_loss`. Subclasses are also responsible for exposing the
+    exact parameter set to optimize through the :attr:`trainable_parameters`
+    property.
+
+    Inference behavior
+    ------------------
+    ``predict`` accepts unnormalized input observations, applies the configured
+    normalization for the requested standard name, delegates normalized
+    forecasting to :meth:`predict_normalized`, then denormalizes the model
+    outputs back to physical units.
+
     Parameters
     ----------
     optimizer : Callable[..., torch.optim.Optimizer] or None, optional
@@ -195,8 +231,44 @@ class BaseForecastingTaskModule(pl.LightningModule):
         return preds_np
 
 
-class ForecastingTaskModule(BaseForecastingTaskModule):
-    """Generic PyTorch Lightning module for direct forecasting tasks.
+class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
+    """Lightning task module for direct forecasting in output space.
+
+    Purpose
+    -------
+    This task module trains conventional forecasting models whose outputs can be
+    compared directly against forecast targets in the original normalized data
+    space. It is the generic wrapper used for models such as ConvGRU, where a
+    single forward pass produces forecast tensors that are supervised directly.
+
+    Ownership
+    ---------
+    This class owns:
+
+    - the forecasting network passed in as ``network``
+    - the output-space forecasting loss
+    - optional masked-loss behavior using ``target_mask``
+    - image and ensemble-statistic logging specific to direct forecast outputs
+
+    It does not own:
+
+    - source-data normalization rules outside the inherited ``predict`` helper
+    - latent-space encoding or decoding components
+    - sampler-driven generative forecast logic
+
+    Training behavior
+    -----------------
+    A forecasting batch provides ``input`` and ``target`` tensors, plus an
+    optional ``target_mask``. The module calls ``network(input)`` to obtain a
+    normalized forecast tensor, optionally applies masked loss, and compares the
+    network outputs directly against the target tensor in output space.
+
+    Inference behavior
+    ------------------
+    Inference is a direct forward pass through the forecasting network. The
+    inherited :meth:`predict` helper normalizes raw inputs, calls
+    :meth:`predict_normalized`, and denormalizes the resulting forecast back to
+    physical units.
 
     Parameters
     ----------
@@ -319,7 +391,7 @@ class ForecastingTaskModule(BaseForecastingTaskModule):
         return list(self.network.parameters())
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path: str, device: str = "cpu") -> "ForecastingTaskModule":
+    def from_checkpoint(cls, checkpoint_path: str, device: str = "cpu") -> "OutputSpaceForecastingTaskModule":
         """Load a forecasting task module from checkpoint.
 
         Parameters
@@ -331,8 +403,8 @@ class ForecastingTaskModule(BaseForecastingTaskModule):
 
         Returns
         -------
-        ForecastingTaskModule
-            Loaded forecasting task module.
+        OutputSpaceForecastingTaskModule
+            Loaded output-space forecasting task module.
         """
         return cls.load_from_checkpoint(
             checkpoint_path,
@@ -342,11 +414,49 @@ class ForecastingTaskModule(BaseForecastingTaskModule):
         )
 
 
-ForecastingModule = ForecastingTaskModule
-
-
 class LatentDiffusionTaskModule(BaseForecastingTaskModule):
-    """Train latent diffusion in latent space and decode forecasts for inference.
+    """Lightning task module for latent diffusion forecasting.
+
+    Purpose
+    -------
+    This task module trains a latent diffusion forecasting system that reuses a
+    stage-1 autoencoder. Forecast supervision is applied in latent space rather
+    than directly on decoded forecast tensors. At inference time, the module
+    samples forecast latents and decodes them back to the original data space.
+
+    Ownership
+    ---------
+    This class owns:
+
+    - the trained autoencoder reused from stage 1
+    - the latent diffusion architecture
+    - the latent diffusion loss
+    - the diffusion sampler used for forecast generation
+    - optional EMA tracking over diffusion-network weights
+
+    It does not own:
+
+    - stage-1 autoencoder training
+    - output-space supervision for the diffusion loss
+    - the source-data normalization rules beyond the inherited ``predict``
+      helper
+
+    Training behavior
+    -----------------
+    A forecasting batch provides raw normalized ``input`` and ``target``
+    tensors. The reused autoencoder encoder maps both into latent space under
+    ``torch.no_grad()``. The module then computes a diffusion loss entirely on
+    latent tensors and exposes only the diffusion-network parameters through
+    :attr:`trainable_parameters`, so the reused autoencoder remains frozen.
+
+    Inference behavior
+    ------------------
+    Inference encodes the input history with the reused autoencoder, samples a
+    latent forecast with the diffusion sampler, then decodes the sampled latent
+    forecast back to data space. Ensemble generation is explicit here: the
+    module repeats encoded inputs per requested ensemble member, samples a
+    forecast latent for each member, and concatenates the decoded members along
+    the channel dimension.
 
     Parameters
     ----------

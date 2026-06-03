@@ -59,9 +59,9 @@
   - [x] diffusion model improves loss on a small generated latent dataset after a few training steps.
 
 5. Task modules (Lightning modules)
-- [x] Add `src/mlcast/modules/forecasting.py`, introduce `BaseForecastingTaskModule`, and rename `NowcastLightningModule` to `ForecastingTaskModule`.
+- [x] Add `src/mlcast/modules/forecasting.py`, introduce `BaseForecastingTaskModule`, and rename `NowcastLightningModule` to `OutputSpaceForecastingTaskModule`.
 - [x] `BaseForecastingTaskModule` should own optimizer/scheduler plumbing, while each concrete task module defines which parameters are trainable.
-- [x] `ForecastingTaskModule` should optimize the forecasting network parameters.
+- [x] `OutputSpaceForecastingTaskModule` should optimize the forecasting network parameters.
 - [x] Remove runtime `forecast_steps` and `ensemble_size` arguments from the forecasting task module and its `predict()` API.
 - [x] Add `src/mlcast/modules/reconstruction.py` with a generic `ReconstructionTaskModule` for any reconstruction model.
 - [x] Add a `LatentDiffusionTaskModule` that owns the trained autoencoder, optimizes only the diffusion-network parameters, trains diffusion in latent space, and handles decoded forecast inference.

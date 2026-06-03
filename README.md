@@ -213,7 +213,7 @@ from mlcast.config.fiddlers import use_random_sampler
 # Minimal adapter: channel-stack past frames -> HalfUNet -> one step at a time.
 # The forecasting contract fixes input_steps, forecast_steps, and ensemble_size
 # at model initialization; this minimal deterministic adapter exposes one
-# ensemble member and ForecastingTaskModule calls network(x).
+# ensemble member and OutputSpaceForecastingTaskModule calls network(x).
 class HalfUNetNowcaster(nn.Module):
     def __init__(self, input_steps: int = 6, forecast_steps: int = 12, num_vars: int = 1):
         super().__init__()
