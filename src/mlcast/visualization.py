@@ -95,7 +95,7 @@ def log_images(
     if ensemble_size > 1:
         preds_avg = preds_sample.mean(dim=1, keepdim=True)
         num_members_to_log = min(3, preds_sample.shape[1])
-        rows = [future_sample, preds_avg] + [preds_sample[:, i : i + 1] for i in range(num_members_to_log)]
+        rows = [future_sample.unsqueeze(1), preds_avg] + [preds_sample[:, i : i + 1] for i in range(num_members_to_log)]
     else:
         rows = [future_sample, preds_sample]
 

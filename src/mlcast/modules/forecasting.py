@@ -8,6 +8,7 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 from beartype import beartype
+from einops import rearrange
 from jaxtyping import Float, jaxtyped
 
 from mlcast.data.normalization import DENORMALIZATION_REGISTRY, NORMALIZATION_REGISTRY
@@ -108,7 +109,7 @@ class BaseForecastingTaskModule(pl.LightningModule):
     def predict_normalized(
         self,
         x: Float[torch.Tensor, "batch time channels height width"],
-    ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
+    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]:
         """Predict normalized forecasts from normalized inputs.
 
         Parameters
@@ -118,8 +119,8 @@ class BaseForecastingTaskModule(pl.LightningModule):
 
         Returns
         -------
-        Float[torch.Tensor, "batch forecast_steps out_channels height width"]
-            Normalized forecast tensor.
+        Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]
+            Normalized forecast tensor with an explicit ensemble dimension.
         """
         return self(x)
 
@@ -306,7 +307,7 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
     def forward(
         self,
         x: Float[torch.Tensor, "batch time channels height width"],
-    ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
+    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]:
         """Run the forecasting network.
 
         Parameters
@@ -316,8 +317,8 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
 
         Returns
         -------
-        Float[torch.Tensor, "batch forecast_steps out_channels height width"]
-            Normalized forecast tensor.
+        Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]
+            Normalized forecast tensor with an explicit ensemble dimension.
         """
         return self.network(x)
 
@@ -341,11 +342,15 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
         future = batch["target"]
         preds = self(past).clamp(min=-1, max=1)
 
+        # Flatten ensemble and channel dims for loss functions that expect
+        # (B, T, M*C, H, W), preserving backward compatibility with CRPS etc.
+        preds_flat = rearrange(preds, "b t m c h w -> b t (m c) h w")
+
         if self.hparams["masked_loss"]:
             mask = batch["target_mask"]
-            loss = self.criterion(preds, future, mask)
+            loss = self.criterion(preds_flat, future, mask)
         else:
-            loss = self.criterion(preds, future)
+            loss = self.criterion(preds_flat, future)
 
         if isinstance(loss, tuple):
             loss, log_dict = loss
@@ -522,7 +527,7 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
     def forward(
         self,
         x: Float[torch.Tensor, "batch input_steps channels height width"],
-    ) -> Float[torch.Tensor, "batch forecast_steps out_channels height width"]:
+    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]:
         """Generate decoded forecasts from normalized input histories.
 
         Parameters
@@ -532,9 +537,9 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
 
         Returns
         -------
-        Float[torch.Tensor, "batch forecast_steps out_channels height width"]
-            Decoded normalized forecast tensor with ensemble members
-            concatenated along the channel dimension.
+        Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]
+            Decoded normalized forecast tensor with an explicit ensemble
+            dimension.
         """
         input_latents = self.autoencoder.encode(x)
         repeated_input_latents = input_latents.repeat_interleave(self.hparams["ensemble_size"], dim=0)
@@ -549,9 +554,7 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         decoded = self.autoencoder.decode(forecast_latents)
         batch, time, channels, height, width = decoded.shape
         decoded = decoded.reshape(x.shape[0], self.hparams["ensemble_size"], time, channels, height, width)
-        return decoded.permute(0, 2, 1, 3, 4, 5).reshape(
-            x.shape[0], time, self.hparams["ensemble_size"] * channels, height, width
-        )
+        return decoded.permute(0, 2, 1, 3, 4, 5)
 
     def compute_loss(self, batch: dict[str, torch.Tensor], split: str = "train") -> torch.Tensor:
         """Compute latent diffusion loss for a forecasting batch.

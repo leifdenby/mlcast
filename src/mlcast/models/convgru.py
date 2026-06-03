@@ -386,7 +386,7 @@ class ConvGruModel(nn.Module):
     @jaxtyped(typechecker=beartype)
     def forward(
         self, x: Float[torch.Tensor, "batch time channels height width"]
-    ) -> Float[torch.Tensor, "batch forecast_steps _ height width"]:
+    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]:
         """Forward the encoder-decoder model.
 
         Parameters
@@ -396,8 +396,8 @@ class ConvGruModel(nn.Module):
 
         Returns
         -------
-        preds : Float[torch.Tensor, "batch forecast_steps out_channels height width"]
-            Forecast tensor.
+        preds : Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels height width"]
+            Forecast tensor with an explicit ensemble dimension.
         """
         if x.shape[1] != self.input_steps:
             raise ValueError(f"Expected {self.input_steps} input timesteps, got {x.shape[1]}.")
@@ -423,11 +423,11 @@ class ConvGruModel(nn.Module):
                 x_dec = torch.randn(x_dec_shape, dtype=encoded[-1].dtype, device=encoded[-1].device)
                 decoded = self.decoder(x_dec, last_hidden_per_block)
                 preds.append(decoded)
-            out = torch.cat(preds, dim=2)
+            out = torch.stack(preds, dim=2)
         else:
             x_dec_func = torch.randn if self.noisy_decoder else torch.zeros
             x_dec = x_dec_func(x_dec_shape, dtype=encoded[-1].dtype, device=encoded[-1].device)
-            out = self.decoder(x_dec, last_hidden_per_block)
+            out = self.decoder(x_dec, last_hidden_per_block).unsqueeze(2)
 
         if pad_h > 0 or pad_w > 0:
             out = out[..., :H, :W]

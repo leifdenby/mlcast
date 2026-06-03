@@ -15,8 +15,9 @@ class DummyForecastNetwork(torch.nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         batch_size, _, channels, height, width = x.shape
-        out_channels = channels * self.ensemble_size
-        return torch.zeros(batch_size, self.forecast_steps, out_channels, height, width, device=x.device)
+        return torch.zeros(
+            batch_size, self.forecast_steps, self.ensemble_size, channels, height, width, device=x.device
+        )
 
 
 def test_nowcasting_module_forward_uses_network_shape_contract() -> None:
@@ -27,7 +28,7 @@ def test_nowcasting_module_forward_uses_network_shape_contract() -> None:
 
     preds = module(x)
 
-    assert preds.shape == (4, 5, 2, 8, 8)
+    assert preds.shape == (4, 5, 2, 1, 8, 8)
 
 
 def test_nowcasting_module_predict_uses_configured_output_shape() -> None:
@@ -39,4 +40,4 @@ def test_nowcasting_module_predict_uses_configured_output_shape() -> None:
     preds = module.predict(past, standard_name="rainfall_rate")
 
     assert isinstance(preds, np.ndarray)
-    assert preds.shape == (2, 4, 8, 8)
+    assert preds.shape == (2, 4, 1, 8, 8)

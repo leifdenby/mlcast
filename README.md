@@ -281,7 +281,7 @@ class HalfUNetNowcaster(nn.Module):
     def forward(
         self,
         x: Float[torch.Tensor, "batch input_steps in_channels H W"],
-    ) -> Float[torch.Tensor, "batch forecast_steps out_channels H W"]:
+    ) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels H W"]:
         # channel-stack all input frames: (b, t, c, h, w) -> (b, t*c, h, w)
         x_flat = einops.rearrange(x, "b t c h w -> b (t c) h w")
         preds = []
@@ -291,7 +291,7 @@ class HalfUNetNowcaster(nn.Module):
             # slide window: drop the oldest timestep (first num_vars channels),
             # append the latest prediction as the newest timestep
             x_flat = torch.cat([x_flat[:, self.num_vars:], y], dim=1)
-        return torch.cat(preds, dim=1)
+        return torch.cat(preds, dim=1).unsqueeze(2)
 
 cfg = convgru_training_experiment.as_buildable()
 use_random_sampler(cfg)
@@ -404,7 +404,8 @@ doubled at each block via `PixelShuffle(2)`.
 
 **Ensemble** — when `ensemble_size > 1` the decoder is run `ensemble_size`
 times, each time with freshly sampled Gaussian noise.  The results are
-concatenated along the channel dimension.
+stacked along an explicit ensemble dimension, giving the final shape
+`(batch, forecast_steps, ensemble_size, channels, height, width)`.
 
 **Deterministic variant** ([diagram source](https://docs.google.com/presentation/d/1U2Y9vZADXTsgQBNiWYAgOwYeMPVu7TOk/edit?slide=id.p6#slide=id.p6)):
 
@@ -479,9 +480,11 @@ and the denoiser is trained to predict the added noise.
 Inference uses a [`DiffusionSampler`](src/mlcast/models/diffusion/sampler.py)
 to progressively denoise random latents conditioned on encoded input history.
 The reverse diffusion loop steps backward through the schedule, and the final
-denoised latent is decoded back to data space by the trained decoder. When
+denoised latent is decoded back to data space by the trained decoder, giving
+an explicit ensemble dimension in the output shape
+`(batch, forecast_steps, ensemble_size, channels, height, width)`. When
 `ensemble_size > 1`, the process is repeated with fresh noise and the results
-are concatenated.
+are stacked.
 
 #### Two-stage training experiment
 
@@ -511,9 +514,14 @@ only runtime `forward` requirement is:
 def forward(
     self,
     x: Float[torch.Tensor, "batch input_steps in_channels H W"],
-) -> Float[torch.Tensor, "batch forecast_steps out_channels H W"]:
+) -> Float[torch.Tensor, "batch forecast_steps ensemble_size out_channels H W"]:
     ...
 ```
+
+The output has an explicit ensemble dimension. For deterministic models
+(`ensemble_size=1`) this dimension is 1. If a loss function operates over
+the full forecast tensor without splitting ensemble members (e.g. MSE on
+the ensemble mean), the task module handles reshaping automatically.
 
 If your network uses a different parameter name for the input channel count
 than `input_channels` (the default assumed by `ConvGruModel` and the

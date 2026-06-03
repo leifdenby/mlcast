@@ -25,9 +25,9 @@ def test_convgru_dynamic_padding() -> None:
     with torch.no_grad():
         preds = model(x)
 
-    # Check that it didn't crash and the output shape is exactly (batch, steps, channels, height, width)
-    # The single ensemble member case returns out_channels = channels.
-    assert preds.shape == (batch_size, forecast_steps, channels, height, width)
+    # Check that it didn't crash and the output shape is exactly (batch, steps, 1, channels, height, width)
+    # The single ensemble member case adds an explicit ensemble dimension.
+    assert preds.shape == (batch_size, forecast_steps, 1, channels, height, width)
 
 
 def test_convgru_dynamic_padding_ensemble() -> None:
@@ -55,11 +55,9 @@ def test_convgru_dynamic_padding_ensemble() -> None:
     with torch.no_grad():
         preds = model(x)
 
-    # Check that it didn't crash and the output shape is exactly (batch, steps, ensemble_size * channels, height, width)
-    # Actually wait: The decoder block outputs the same number of channels as the final upsampling step.
-    # In the `ConvGruModel.forward` with `ensemble_size > 1`, `out` is `torch.cat(preds, dim=2)`.
-    # Let's verify the exact channel dimension. The original output channels per ensemble member is `channels`.
-    assert preds.shape == (batch_size, forecast_steps, channels * ensemble_size, height, width)
+    # Check that it didn't crash and the output shape has an explicit ensemble dimension:
+    # (batch, forecast_steps, ensemble_size, channels, height, width)
+    assert preds.shape == (batch_size, forecast_steps, ensemble_size, channels, height, width)
 
 
 def test_convgru_rejects_wrong_input_steps() -> None:

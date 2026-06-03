@@ -95,4 +95,4 @@ def test_latent_diffusion_module_predict_uses_configured_output_shape() -> None:
     preds = module.predict(past, standard_name="rainfall_rate")
 
     assert isinstance(preds, np.ndarray)
-    assert preds.shape == (2, 3, 8, 8)
+    assert preds.shape == (2, 3, 1, 8, 8)

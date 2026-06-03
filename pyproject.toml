@@ -34,6 +34,7 @@ dependencies = [
   "absl-py>=2.4",
   "beartype>=0.18",
   "cf-xarray>=0.10",
+  "einops>=0.8",
   "etils>=1.13",
   "fiddle>=0.3",
   "fire>=0.7",
@@ -84,6 +85,7 @@ scripts.mlcast = "mlcast.__main__:cli"
 
 [dependency-groups]
 dev = [
+  "pre-commit>=4.6",
   "pytest>=9.0.3",
 ]
 mlflow = [  ]
