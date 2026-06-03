@@ -552,9 +552,11 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         )
         forecast_latents = self.sampler.sample(repeated_input_latents, latent_shape)
         decoded = self.autoencoder.decode(forecast_latents)
-        batch, time, channels, height, width = decoded.shape
-        decoded = decoded.reshape(x.shape[0], self.hparams["ensemble_size"], time, channels, height, width)
-        return decoded.permute(0, 2, 1, 3, 4, 5)
+        # Decoded latent has shape (B*E, T, C, H, W) because ensemble members
+        # were stacked in the batch dim via repeat_interleave.  Unstack into an
+        # explicit ensemble dim and move time before ensemble for the standard
+        # (B, T, E, C, H, W) shape contract expected by loss functions etc.
+        return rearrange(decoded, "(b e) t c h w -> b t e c h w", e=self.hparams["ensemble_size"])
 
     def compute_loss(self, batch: dict[str, torch.Tensor], split: str = "train") -> torch.Tensor:
         """Compute latent diffusion loss for a forecasting batch.
