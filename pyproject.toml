@@ -1,11 +1,10 @@
 [build-system]
 build-backend = "hatchling.build"
 
-requires = [ "hatchling" ]
+requires = [ "hatch-vcs", "hatchling" ]
 
 [project]
 name = "mlcast"
-version = "0.0.1a5"
 description = "Machine learning weather nowcasting library"
 readme = "README.md"
 keywords = [ "machine-learning", "meteorology", "nowcasting", "precipitation", "pytorch", "radar", "weather" ]
@@ -16,6 +15,7 @@ maintainers = [
 authors = [
   { name = "Gabriele Franch", email = "franch@fbk.eu" },
   { name = "Leif Denby", email = "lcd@dmi.dk" },
+  { name = "Oscar Dewasmes", email = "oscar.dewasmes@meteo.fr" },
 ]
 requires-python = ">=3.11"
 classifiers = [
@@ -30,6 +30,7 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Atmospheric Science",
 ]
 
+dynamic = [ "version" ]
 dependencies = [
   "absl-py>=2.4",
   "beartype>=0.18",
@@ -89,6 +90,9 @@ dev = [
   "pytest>=9.0.3",
 ]
 mlflow = [  ]
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.ruff]
 line-length = 120
