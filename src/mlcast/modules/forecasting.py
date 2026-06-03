@@ -486,7 +486,13 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         Learning-rate scheduler factory. Default is ``None``.
     ema_decay : float or None, optional
         If provided, track an exponential moving average of diffusion-net
-        parameters with this decay. Default is ``None``.
+        parameters with this decay (commonly ``0.999`` or ``0.9999``). EMA-
+        smoothed weights are swapped in during validation, testing, and
+        prediction — the raw weights receive gradient updates during training.
+        This is standard practice in diffusion models: the iterative denoising
+        process amplifies small weight fluctuations, and EMA averaging
+        suppresses that noise for cleaner samples at inference time. Default is
+        ``None`` (no EMA).
     """
 
     def __init__(
