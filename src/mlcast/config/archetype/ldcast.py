@@ -9,13 +9,14 @@ import torch
 from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, ModelCheckpoint
 from pytorch_lightning.loggers import TensorBoardLogger
 
-from mlcast.config.base import Experiment
 from mlcast.data.datamodules import ForecastingDataModule, ReconstructionDataModule
 from mlcast.data.sequence import SourceDataPrecomputedSequenceDataset
 from mlcast.models.autoencoder import AutoencoderNet, Decoder, Encoder
 from mlcast.models.diffusion import ConditionerNet, DenoiserUNet, DiffusionScheduler, LatentDiffusionNet
 from mlcast.modules.forecasting import LatentDiffusionTaskModule
 from mlcast.modules.reconstruction import ReconstructionTaskModule
+
+from ..base import Experiment
 
 
 @dataclass

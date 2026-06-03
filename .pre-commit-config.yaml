@@ -32,13 +32,13 @@ repos:
     name: convgru config diagram up to date
     language: system
     entry: uv run python docs/generate_base_experiment_config_diagram.py --check
-    files: ^src/mlcast/config/base\.py$
+    files: ^src/mlcast/config/(base|archetype/convgru)\.py$
     pass_filenames: false
   - id: config-diagram-ldcast
     name: ldcast config diagram up to date
     language: system
     entry: uv run python docs/generate_ldcast_config_diagram.py --check
-    files: ^src/mlcast/config/ldcast\.py$
+    files: ^src/mlcast/config/archetype/ldcast\.py$
     pass_filenames: false
 ci:
   autoupdate_schedule: monthly

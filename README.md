@@ -69,10 +69,10 @@ reproduce runs exactly from a saved YAML file.
 
 mlcast ships with two included configuration functions:
 
-- [`convgru_training_experiment`](src/mlcast/config/base.py) — defines a
+- [`convgru_training_experiment`](src/mlcast/config/archetype/convgru.py) — defines a
   single-stage ConvGRU ensemble nowcasting setup (dataset, data module, network,
   Lightning module, trainer).
-- [`ldcast_training_experiment`](src/mlcast/config/ldcast.py) — defines a
+- [`ldcast_training_experiment`](src/mlcast/config/archetype/ldcast.py) — defines a
   two-stage LDCast setup: stage 1 trains an autoencoder on reconstruction
   windows, stage 2 trains a latent diffusion model on the same autoencoder's
   latent space.
@@ -191,7 +191,7 @@ import fiddle as fdl
 from mlcast.config import convgru_training_experiment, train_from_config
 from mlcast.config.fiddlers import use_random_sampler
 
-cfg = convgru_training_experiment.as_buildable()  # returns a fdl.Config graph — see src/mlcast/config/base.py
+cfg = convgru_training_experiment.as_buildable()  # returns a fdl.Config graph — see src/mlcast/config/archetype/convgru.py
 
 # Apply a fiddler to switch the dataset sampler
 use_random_sampler(cfg)
@@ -342,8 +342,10 @@ mlcast/
 │   ├── callbacks.py                     # Training callbacks
 │   ├── visualization.py                 # TensorBoard image logging helpers
 │   ├── config/
-│   │   ├── base.py                      # ConvGRU training config @auto_config
-│   │   ├── ldcast.py                    # LDCast two-stage config @auto_config
+│   │   ├── base.py                      # Experiment dataclass
+│   │   ├── archetype/
+│   │   │   ├── convgru.py               # ConvGRU training config @auto_config
+│   │   │   └── ldcast.py                # LDCast two-stage config @auto_config
 │   │   ├── fiddlers.py                  # Semantic config mutators
 │   │   ├── consistency_checks.py        # Cross-parameter validation
 │   │   ├── loader.py                    # YAML config loader
