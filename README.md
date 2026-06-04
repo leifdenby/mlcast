@@ -207,6 +207,7 @@ train_from_config(cfg)
 
 **Run the included latent diffusion experiment with tweaks:**
 
+```python
 from mlcast.config import latent_diffusion_experiment, train_from_config
 from mlcast.config.fiddlers import use_random_sampler
 
