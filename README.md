@@ -72,8 +72,8 @@ mlcast ships with two included configuration functions:
 - [`convgru_training_experiment`](src/mlcast/config/archetype/convgru.py) — defines a
   single-stage ConvGRU ensemble nowcasting setup (dataset, data module, network,
   Lightning module, trainer).
-- [`ldcast_training_experiment`](src/mlcast/config/archetype/ldcast.py) — defines a
-  two-stage LDCast setup: stage 1 trains an autoencoder on reconstruction
+- [`latent_diffusion_experiment`](src/mlcast/config/archetype/latent_diffusion.py) — defines a
+  two-stage latent diffusion setup: stage 1 trains an autoencoder on reconstruction
   windows, stage 2 trains a latent diffusion model on the same autoencoder's
   latent space.
 
@@ -98,9 +98,9 @@ The diagrams below show the full included config graphs.
 
 ![convgru_training_experiment config graph](docs/config_diagram.svg)
 
-**ldcast_training_experiment:**
+**latent_diffusion_experiment:**
 
-![ldcast_training_experiment config graph](docs/ldcast_config_diagram.svg)
+![latent_diffusion_experiment config graph](docs/latent_diffusion_config_diagram.svg)
 
 ### Design roles
 
@@ -132,16 +132,16 @@ Install the package and run:
 ```bash
 # Single-stage ConvGRU nowcasting
 mlcast train --config config:convgru_training_experiment
+# Two-stage latent diffusion
 
-# Two-stage LDCast latent diffusion
-mlcast train --config config:ldcast_training_experiment
+mlcast train --config config:latent_diffusion_experiment
 ```
 
 All parameters are controlled via `--config` flags:
 
 | Prefix | Purpose | Example |
 |--------|---------|---------|
-| `config:` | Select an included `@auto_config` function | `--config config:convgru_training_experiment` or `--config config:ldcast_training_experiment` |
+| `config:` | Select an included `@auto_config` function | `--config config:convgru_training_experiment` or `--config config:latent_diffusion_experiment` |
 | `set:` | Override a single parameter | `--config set:data.batch_size=32` |
 | `fiddler:` | Apply a semantic mutator (multi-param change) | `--config fiddler:use_random_sampler` |
 | `path/to/config.yaml` | Load a previously saved config | `--config saved.yaml` |
@@ -168,9 +168,9 @@ mlcast train \
     --config logs/mlcast/version_0/config.yaml \
     --config set:trainer.max_epochs=50
 
-# Run two-stage LDCast training with a shorter diffusion schedule
-mlcast train \
-    --config config:ldcast_training_experiment \
+# Run two-stage latent diffusion training with a shorter diffusion schedule
+
+    --config config:latent_diffusion_experiment \
     --config set:stage2.pl_module.diffusion_net.scheduler.timesteps=20
 
 # Inspect the fully resolved config without starting training
@@ -205,14 +205,12 @@ cfg.trainer.max_epochs = 50
 train_from_config(cfg)
 ```
 
-**Run the included LDCast experiment with tweaks:**
+**Run the included latent diffusion experiment with tweaks:**
 
-```python
-import fiddle as fdl
-from mlcast.config import ldcast_training_experiment, train_from_config
+from mlcast.config import latent_diffusion_experiment, train_from_config
 from mlcast.config.fiddlers import use_random_sampler
 
-cfg = ldcast_training_experiment.as_buildable()
+cfg = latent_diffusion_experiment.as_buildable()
 
 # Applied once — @applies_to_experiments walks both stages automatically
 use_random_sampler(cfg)
@@ -340,7 +338,7 @@ mlcast/
 │   │   ├── base.py                      # Experiment dataclass
 │   │   ├── archetype/
 │   │   │   ├── convgru.py               # ConvGRU training config @auto_config
-│   │   │   └── ldcast.py                # LDCast two-stage config @auto_config
+│   │   │   └── latent_diffusion.py      # Two-stage latent diffusion config @auto_config
 │   │   ├── fiddlers.py                  # Semantic config mutators
 │   │   ├── consistency_checks.py        # Cross-parameter validation
 │   │   ├── loader.py                    # YAML config loader
@@ -413,9 +411,9 @@ stacked along an explicit ensemble dimension, giving the final shape
 ![ConvGruModel stochastic architecture](docs/architectures/convgru-stochastic.png)
 
 
-### LatentDiffusionNet (LDCast)
+### LatentDiffusionNet (two-stage latent diffusion)
 
-LDCast is a **two-stage** latent diffusion nowcasting system. Stage 1 trains an
+This is a **two-stage** latent diffusion nowcasting system. Stage 1 trains an
 autoencoder on reconstruction windows; stage 2 trains a latent diffusion model
 that forecasts in the autoencoder's latent space and decodes forecasts back to
 data space.
@@ -423,7 +421,7 @@ data space.
 The architecture components live under `src/mlcast/models/autoencoder/` and
 `src/mlcast/models/diffusion/`. The task-level Lightning modules live under
 `src/mlcast/modules/` and are wired together by
-[`ldcast_training_experiment`](src/mlcast/config/ldcast.py).
+[`latent_diffusion_experiment`](src/mlcast/config/archetype/latent_diffusion.py).
 
 #### Stage 1 — Autoencoder reconstruction
 
@@ -485,7 +483,7 @@ are stacked.
 
 #### Two-stage training experiment
 
-The [`ldcast_training_experiment`](src/mlcast/config/ldcast.py) auto-config
+The [`latent_diffusion_experiment`](src/mlcast/config/archetype/latent_diffusion.py) auto-config
 orchestrates both stages:
 
 - Stage 1 builds a `ReconstructionDataModule`, `AutoencoderNet`, and

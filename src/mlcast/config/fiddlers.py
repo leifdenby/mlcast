@@ -91,7 +91,7 @@ def applies_to_experiments(fiddler: Callable) -> Callable:
 
     This makes fiddlers work with both flat ``Experiment`` configs (returned by
     ``convgru_training_experiment``) and nested containers like
-    ``LDCastTrainingExperiment`` that contain multiple ``Experiment`` instances.
+    ``LatentDiffusionTrainingExperiment`` that contain multiple ``Experiment`` instances.
 
     Parameters
     ----------

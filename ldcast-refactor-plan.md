@@ -1,9 +1,9 @@
-# LDCast Refactor Plan
+# Latent Diffusion Refactor Plan
 
 0. Config naming and CLI contract
 - [x] Rename `training_experiment` to `convgru_training_experiment`.
 - [x] Do not keep `training_experiment` as an alias.
-- [x] Reserve `ldcast_training_experiment` as the top-level config name for the new two-stage LDCast workflow.
+- [x] Reserve `latent_diffusion_experiment` as the top-level config name for the two-stage workflow.
 - [x] Require `mlcast train` users to provide an explicit base config via `--config config:<name>` or `--config /path/to/config.yaml`.
 - [x] Update CLI help text to list the included config entry points explicitly.
 - [x] Update all docs, examples, tests, and scripts to use `convgru_training_experiment` instead of `training_experiment`.
@@ -68,7 +68,7 @@
 - [x] Keep `modules/` for task-level Lightning modules only; keep `models/` for pure architectures.
 
 6. Training experiment
-- [x] Add a new LDCast-specific training module containing `LDCastTrainingExperiment`.
+- [x] Add a new two-stage `LatentDiffusionTrainingExperiment` (initially called `LDCastTrainingExperiment`).
 - [x] Keep `convgru_training_experiment` as the existing ConvGRU forecasting example and one of the explicitly selected included CLI configs.
 - [x] Stage 1 builds the reconstruction dataset, autoencoder model, and `ReconstructionTaskModule`, then trains the autoencoder.
 - [x] Stage 2 reuses the same trained in-memory autoencoder instance, builds the diffusion dataset/model/`LatentDiffusionTaskModule`, then trains latent diffusion.
@@ -82,46 +82,17 @@
 - [x] Update CLI/help text in `src/mlcast/__main__.py` to require an explicit base config and list the included config entry points.
 - [x] Rename `training_experiment` to `convgru_training_experiment` in `src/mlcast/config/base.py` and export it from `src/mlcast/config/__init__.py`.
 - [x] Add the LDCast config entry point to `src/mlcast/config/__init__.py` alongside the existing ConvGRU example config.
-- [x] Keep `src/mlcast/config/orchestrator.py` compatible with both the existing single-stage `Experiment` and the new `LDCastTrainingExperiment` through a common `run()` surface.
-- [x] Update docstrings and comments that currently imply `training_experiment` is the only experiment, including `src/mlcast/data/source_data_datamodule.py`, `src/mlcast/config/orchestrator.py`, and related config docs.
-- [x] Update docs and scripts that still reference `training_experiment`, including `README.md` and `docs/generate_base_experiment_config_diagram.py`.
-- [x] Keep existing ConvGRU CLI/config tests passing while adding separate tests for selecting the LDCast config explicitly.
-- [ ] Add real but small-scale end-to-end tests with generated sample data for the autoencoder stage, diffusion stage, and full LDCast stage sequencing.
+- [x] Keep `src/mlcast/config/orchestrator.py` compatible with both the existing single-stage `Experiment` and `LatentDiffusionTrainingExperiment` through a common `run()` surface.
+
+- [x] Keep existing ConvGRU CLI/config tests passing while adding separate tests for the two-stage config explicitly.
+
+- [ ] Add real but small-scale end-to-end tests with generated sample data for the autoencoder stage, diffusion stage, and full two-stage sequencing.
 - [x] Align metric naming with TensorBoard conventions: use `/` as hierarchy separator and `rec_loss`/`loss` to distinguish stages.
 
-## 8. Align LDCast config with DMI/Martinbo reference
-
-### Optimizer
-- [x] Switch both stages to `AdamW` (from `Adam`)
-- [x] Set `betas=(0.5, 0.9)` for both stages
-- [x] Set `weight_decay=1e-3` for both stages
-- [x] Raise autoencoder LR to `1e-3`, keep diffusion LR at `1e-4`
-
-### LR scheduler
-- [x] Reduce `ReduceLROnPlateau` factor to `0.25` (from `0.5`)
-- [x] Reduce patience to `3` (from `10`)
-
-### EMA
-- [x] Increase EMA decay to `0.9999` (from `0.999`)
-- [x] Decide: EMA on full diffusion net (DMI) or denoiser only (Martinbo) — chose full diffusion net (DMI)
-
-### Early stopping
-- [x] Reduce patience to `6` (from `20`)
-- [x] Set `check_finite=False` on the diffusion stage
-
-### Model checkpointing
-- [x] Increase `save_top_k` to `3` (from `1`)
-
-### Diffusion noise schedule
-- [x] Increase `timesteps` to `1000` (from `20`)
-- [x] Set linear beta schedule from `1e-4` to `2e-2`
-
-### Batch size and gradient accumulation
-- [x] Reduce batch sizes (e.g. `batch_size=4` autoenc / `batch_size=1` diffusion)
-- [x] Add `accumulate_grad_batches=2`
+## 8. Align latent diffusion config with DMI/Martinbo reference
 
 The `ldcast-dmi/` reference implementation differs from our current
-`ldcast_training_experiment` config in several ways. Changes below would
+`latent_diffusion_experiment` config in several ways. Changes below would
 align us more closely with DMI.
 
 ### Optimizer

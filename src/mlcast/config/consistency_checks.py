@@ -118,44 +118,47 @@ def _validate_forecasting_experiment_cfg(cfg: fdl.Config) -> None:
         )
 
 
-def _validate_ldcast_training_experiment_cfg(cfg: fdl.Config) -> None:
-    """Validate a two-stage LDCast training experiment configuration.
+def _validate_latent_diffusion_experiment_cfg(cfg: fdl.Config) -> None:
+    """Validate a two-stage latent diffusion training experiment configuration.
 
     Parameters
     ----------
     cfg : fdl.Config
-        Fiddle configuration for a two-stage LDCast experiment.
+        Fiddle configuration for a two-stage latent diffusion experiment.
 
     Raises
     ------
     ValueError
-        If any LDCast-specific configuration contract is violated.
+        If any latent-diffusion-specific configuration contract is violated.
     """
     stage1 = cfg.stage1
     stage2 = cfg.stage2
 
     autoencoder = stage1.pl_module.network
     if autoencoder is not stage2.pl_module.autoencoder:
-        raise ValueError("LDCast contract violated: stage1 and stage2 must share the same autoencoder config object.")
+        raise ValueError(
+            "LatentDiffusion contract violated: stage1 and stage2 must share the same autoencoder config object."
+        )
 
     stage1_data = stage1.data
     stage2_data = stage2.data
     if stage1_data.input_steps != stage2_data.input_steps:
         raise ValueError(
-            "LDCast contract violated: stage1 and stage2 must use the same input_steps; "
+            "LatentDiffusion contract violated: stage1 and stage2 must use the same input_steps; "
             f"got {stage1_data.input_steps} and {stage2_data.input_steps}."
         )
 
     stage2_module = stage2.pl_module
     if stage2_data.forecast_steps != stage2_module.forecast_steps:
         raise ValueError(
-            "LDCast contract violated: stage2 data.forecast_steps must match the latent diffusion task module; "
-            f"got {stage2_data.forecast_steps} and {stage2_module.forecast_steps}."
+            "LatentDiffusion contract violated: stage2 data.forecast_steps must match the latent diffusion "
+            f"task module; got {stage2_data.forecast_steps} and {stage2_module.forecast_steps}."
         )
 
     if len(stage1_data.sequence_dataset_factory.standard_names) != autoencoder.encoder.input_channels:
         raise ValueError(
-            "LDCast contract violated: autoencoder encoder input_channels must match the number of source variables."
+            "LatentDiffusion contract violated: autoencoder encoder input_channels must match the "
+            "number of source variables."
         )
 
 
@@ -173,7 +176,7 @@ def validate_config(cfg: fdl.Config) -> None:
         If any configuration contract is violated.
     """
     if hasattr(cfg, "stage1") and hasattr(cfg, "stage2"):
-        _validate_ldcast_training_experiment_cfg(cfg)
+        _validate_latent_diffusion_experiment_cfg(cfg)
         return
 
     _validate_forecasting_experiment_cfg(cfg)

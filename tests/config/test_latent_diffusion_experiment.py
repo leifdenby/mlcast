@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import fiddle as fdl
 
-from mlcast.config import LDCastTrainingExperiment, ldcast_training_experiment, validate_config
+from mlcast.config import LatentDiffusionTrainingExperiment, latent_diffusion_experiment, validate_config
 from mlcast.config.base import Experiment
 
 
@@ -19,12 +19,12 @@ class RecordingTrainer:
         self.events.append(f"test:{pl_module}:{datamodule}")
 
 
-def test_ldcast_training_experiment_runs_stages_in_order() -> None:
-    """LDCastTrainingExperiment should execute stage 1 fully before stage 2."""
+def test_latent_diffusion_experiment_runs_stages_in_order() -> None:
+    """LatentDiffusionTrainingExperiment should execute stage 1 fully before stage 2."""
     events: list[str] = []
     stage1 = Experiment(pl_module="stage1_module", data="stage1_data", trainer=RecordingTrainer(events=events))
     stage2 = Experiment(pl_module="stage2_module", data="stage2_data", trainer=RecordingTrainer(events=events))
-    experiment = LDCastTrainingExperiment(stage1=stage1, stage2=stage2)
+    experiment = LatentDiffusionTrainingExperiment(stage1=stage1, stage2=stage2)
 
     experiment.run()
 
@@ -36,9 +36,9 @@ def test_ldcast_training_experiment_runs_stages_in_order() -> None:
     ]
 
 
-def test_ldcast_training_experiment_shares_autoencoder_identity() -> None:
+def test_latent_diffusion_experiment_shares_autoencoder_identity() -> None:
     """Stage 1 and stage 2 should reference the same built autoencoder instance."""
-    cfg = ldcast_training_experiment.as_buildable()
+    cfg = latent_diffusion_experiment.as_buildable()
     validate_config(cfg)
 
     experiment = fdl.build(cfg)

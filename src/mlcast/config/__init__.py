@@ -5,7 +5,7 @@ and runtime orchestration logic for `mlcast`.
 """
 
 from .archetype.convgru import convgru_training_experiment
-from .archetype.ldcast import LDCastTrainingExperiment, ldcast_training_experiment
+from .archetype.latent_diffusion import LatentDiffusionTrainingExperiment, latent_diffusion_experiment
 from .base import Experiment
 from .consistency_checks import validate_config
 from .fiddlers import (
@@ -21,9 +21,9 @@ from .orchestrator import train_from_config
 
 __all__ = [
     "Experiment",
-    "LDCastTrainingExperiment",
+    "LatentDiffusionTrainingExperiment",
     "convgru_training_experiment",
-    "ldcast_training_experiment",
+    "latent_diffusion_experiment",
     "validate_config",
     "train_from_config",
     "load_yaml_config",

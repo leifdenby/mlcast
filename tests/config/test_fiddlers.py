@@ -2,7 +2,7 @@ import fiddle as fdl
 
 from mlcast.config import (
     convgru_training_experiment,
-    ldcast_training_experiment,
+    latent_diffusion_experiment,
     set_variables,
     toggle_masking,
     use_random_sampler,
@@ -34,9 +34,9 @@ def test_fiddler_toggle_masking() -> None:
     assert cfg.pl_module.masked_loss is True
 
 
-def test_fiddler_set_variables_on_ldcast() -> None:
-    """Verify set_variables applies to both stages of an LDCastTrainingExperiment."""
-    cfg = ldcast_training_experiment.as_buildable()
+def test_fiddler_set_variables_on_latent_diffusion() -> None:
+    """Verify set_variables applies to both stages of a LatentDiffusionTrainingExperiment."""
+    cfg = latent_diffusion_experiment.as_buildable()
 
     set_variables(cfg, ["rainfall_rate", "rainfall_flux", "rainfall_intensity"])
 
@@ -50,9 +50,9 @@ def test_fiddler_set_variables_on_ldcast() -> None:
     assert cfg.stage2.pl_module.autoencoder.encoder.input_channels == 3
 
 
-def test_fiddler_use_random_sampler_on_ldcast() -> None:
-    """Verify use_random_sampler applies to both stages of LDCastTrainingExperiment."""
-    cfg = ldcast_training_experiment.as_buildable()
+def test_fiddler_use_random_sampler_on_latent_diffusion() -> None:
+    """Verify use_random_sampler applies to both stages of LatentDiffusionTrainingExperiment."""
+    cfg = latent_diffusion_experiment.as_buildable()
 
     assert fdl.get_callable(cfg.stage1.data.sequence_dataset_factory) is SourceDataPrecomputedSequenceDataset
     assert fdl.get_callable(cfg.stage2.data.sequence_dataset_factory) is SourceDataPrecomputedSequenceDataset
@@ -63,9 +63,9 @@ def test_fiddler_use_random_sampler_on_ldcast() -> None:
     assert fdl.get_callable(cfg.stage2.data.sequence_dataset_factory) is SourceDataRandomSequenceDataset
 
 
-def test_fiddler_use_ratio_splits_on_ldcast() -> None:
-    """Verify use_ratio_splits applies to both stages of LDCastTrainingExperiment."""
-    cfg = ldcast_training_experiment.as_buildable()
+def test_fiddler_use_ratio_splits_on_latent_diffusion() -> None:
+    """Verify use_ratio_splits applies to both stages of LatentDiffusionTrainingExperiment."""
+    cfg = latent_diffusion_experiment.as_buildable()
 
     use_ratio_splits(cfg, train=0.6, val=0.2)
 

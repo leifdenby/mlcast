@@ -1,4 +1,4 @@
-"""Fiddle configuration for two-stage LDCast training."""
+"""Fiddle configuration for two-stage latent diffusion training."""
 
 from dataclasses import dataclass
 
@@ -20,8 +20,8 @@ from ..base import Experiment
 
 
 @dataclass
-class LDCastTrainingExperiment:
-    """Two-stage LDCast training experiment.
+class LatentDiffusionTrainingExperiment:
+    """Two-stage latent diffusion training experiment.
 
     Parameters
     ----------
@@ -56,12 +56,12 @@ class LDCastTrainingExperiment:
 
 
 @fiddle.experimental.auto_config.auto_config
-def ldcast_training_experiment() -> LDCastTrainingExperiment:
-    """Build a Fiddle config for two-stage LDCast training.
+def latent_diffusion_experiment() -> LatentDiffusionTrainingExperiment:
+    """Build a Fiddle config for two-stage latent diffusion training.
 
     Returns
     -------
-    LDCastTrainingExperiment
+    LatentDiffusionTrainingExperiment
         Configured two-stage experiment with shared autoencoder identity across
         reconstruction and latent diffusion stages.
     """
@@ -106,7 +106,7 @@ def ldcast_training_experiment() -> LDCastTrainingExperiment:
             EarlyStopping(monitor="val/rec_loss", patience=6, mode="min"),
             LearningRateMonitor(logging_interval="step"),
         ],
-        logger=TensorBoardLogger(save_dir="logs", name="mlcast_ldcast_stage1"),
+        logger=TensorBoardLogger(save_dir="logs", name="mlcast_latent_diffusion_stage1"),
     )
 
     stage2_data = ForecastingDataModule(
@@ -142,10 +142,10 @@ def ldcast_training_experiment() -> LDCastTrainingExperiment:
             EarlyStopping(monitor="val/loss", patience=6, mode="min", check_finite=False),
             LearningRateMonitor(logging_interval="step"),
         ],
-        logger=TensorBoardLogger(save_dir="logs", name="mlcast_ldcast_stage2"),
+        logger=TensorBoardLogger(save_dir="logs", name="mlcast_latent_diffusion_stage2"),
     )
 
-    return LDCastTrainingExperiment(
+    return LatentDiffusionTrainingExperiment(
         stage1=Experiment(pl_module=stage1_module, data=stage1_data, trainer=stage1_trainer),
         stage2=Experiment(pl_module=stage2_module, data=stage2_data, trainer=stage2_trainer),
     )

@@ -112,7 +112,7 @@ def _patch_cfg(cfg: fdl.Config, fp_dataset: Path, tmp_path: Path) -> None:
     ``network.input_channels`` is kept in sync with ``standard_names``.
 
     Handles both flat ``Experiment`` configs and nested containers like
-    ``LDCastTrainingExperiment`` by finding all ``Experiment`` sub-configs
+    ``LatentDiffusionTrainingExperiment`` by finding all ``Experiment`` sub-configs
     in the tree and patching each one.
 
     Parameters
