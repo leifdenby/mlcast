@@ -87,38 +87,38 @@
 - [x] Update docs and scripts that still reference `training_experiment`, including `README.md` and `docs/generate_base_experiment_config_diagram.py`.
 - [x] Keep existing ConvGRU CLI/config tests passing while adding separate tests for selecting the LDCast config explicitly.
 - [ ] Add real but small-scale end-to-end tests with generated sample data for the autoencoder stage, diffusion stage, and full LDCast stage sequencing.
-- [ ] Align metric naming with TensorBoard conventions: use `/` as hierarchy separator and `rec_loss`/`loss` to distinguish stages — done (commit pending)
+- [x] Align metric naming with TensorBoard conventions: use `/` as hierarchy separator and `rec_loss`/`loss` to distinguish stages.
 
 ## 8. Align LDCast config with DMI/Martinbo reference
 
 ### Optimizer
-- [ ] Switch both stages to `AdamW` (from `Adam`)
-- [ ] Set `betas=(0.5, 0.9)` for both stages
-- [ ] Set `weight_decay=1e-3` for both stages
-- [ ] Raise autoencoder LR to `1e-3`, keep diffusion LR at `1e-4`
+- [x] Switch both stages to `AdamW` (from `Adam`)
+- [x] Set `betas=(0.5, 0.9)` for both stages
+- [x] Set `weight_decay=1e-3` for both stages
+- [x] Raise autoencoder LR to `1e-3`, keep diffusion LR at `1e-4`
 
 ### LR scheduler
-- [ ] Reduce `ReduceLROnPlateau` factor to `0.25` (from `0.5`)
-- [ ] Reduce patience to `3` (from `10`)
+- [x] Reduce `ReduceLROnPlateau` factor to `0.25` (from `0.5`)
+- [x] Reduce patience to `3` (from `10`)
 
 ### EMA
-- [ ] Increase EMA decay to `0.9999` (from `0.999`)
-- [ ] Decide: EMA on full diffusion net (DMI) or denoiser only (Martinbo)
+- [x] Increase EMA decay to `0.9999` (from `0.999`)
+- [x] Decide: EMA on full diffusion net (DMI) or denoiser only (Martinbo) — chose full diffusion net (DMI)
 
 ### Early stopping
-- [ ] Reduce patience to `6` (from `20`)
-- [ ] Set `check_finite=False` on the diffusion stage
+- [x] Reduce patience to `6` (from `20`)
+- [x] Set `check_finite=False` on the diffusion stage
 
 ### Model checkpointing
-- [ ] Increase `save_top_k` to `3` (from `1`)
+- [x] Increase `save_top_k` to `3` (from `1`)
 
 ### Diffusion noise schedule
-- [ ] Increase `timesteps` to `1000` (from `20`)
-- [ ] Set linear beta schedule from `1e-4` to `2e-2`
+- [x] Increase `timesteps` to `1000` (from `20`)
+- [x] Set linear beta schedule from `1e-4` to `2e-2`
 
 ### Batch size and gradient accumulation
-- [ ] Reduce batch sizes (e.g. `batch_size=4` autoenc / `batch_size=1` diffusion)
-- [ ] Add `accumulate_grad_batches=2`
+- [x] Reduce batch sizes (e.g. `batch_size=4` autoenc / `batch_size=1` diffusion)
+- [x] Add `accumulate_grad_batches=2`
 
 The `ldcast-dmi/` reference implementation differs from our current
 `ldcast_training_experiment` config in several ways. Changes below would
@@ -261,3 +261,100 @@ the DMI reference in several ways.
 - **Ours**: `parameterization="eps"` in `DiffusionLoss` (L2 via
   `nn.MSELoss` reduction).
 - **To align**: All three agree on `eps` + MSE — no change needed.
+
+
+## 9. Possible future work
+
+Architecture and feature upgrades not covered by section 8 (config alignment).
+Each entry explains why it might be worth doing.
+
+### VAE autoencoder (KL-regularised latent space)
+
+DMI uses `AutoencoderKL` — a VAE trained with a KL-divergence loss on the latent
+distribution, producing a smoother, more Gaussian latent space. Ours uses a
+deterministic autoencoder.
+
+**Why it might be a good idea**: Diffusion models assume the target distribution
+is Gaussian (they start from Gaussian noise and reverse-diffuse). A KL-
+regularised latent space is closer to Gaussian, which can make diffusion easier
+and improve sample quality. It also enables latent-space interpolation and
+manipulation. However, it adds training complexity (KL loss weighting, posterior
+collapse risk).
+
+### Larger denoiser (3D UNet with cross-attention)
+
+DMI's `UNetModel` uses 128 model channels, attention blocks at multiple
+resolutions, 8 attention heads, and 3D convolutions over (time, height, width).
+Ours uses 32 hidden channels, no attention, and preserves time as a plain
+channel dimension.
+
+**Why it might be a good idea**: More capacity → better fit to complex
+precipitation patterns. Cross-attention allows the denoiser to selectively
+attend to conditioning context at each resolution, which is more expressive
+than our simple input concatenation. The cost is larger memory footprint and
+longer training times.
+
+### Multi-resolution context encoder (AFNO cascade)
+
+DMI's `AFNONowcastNetCascade` produces a feature pyramid where each spatial
+resolution has its own channel depth. The denoiser selects the appropriate level
+based on its current spatial resolution. Ours uses a single-resolution
+`ConditionerNet` that is interpolated if spatial sizes don't match.
+
+**Why it might be a good idea**: Multi-resolution conditioning lets the denoiser
+access fine-grained local information at high resolutions and broad context at
+low resolutions simultaneously. This is standard in modern conditional diffusion
+models (e.g. Stable Diffusion's cross-attention to CLIP embeddings at multiple
+scales).
+
+### PLMS accelerated sampling
+
+DMI's `PLMSSampler` uses Adams-Bashforth multistep integration to reduce 1000
+DDPM steps to ~50 with minimal quality loss. Ours uses a basic ancestral DDPM
+sampler that iterates over all timesteps.
+
+**Why it might be a good idea**: 20× faster inference is critical for
+operational nowcasting where latency matters. PLMS is well-established (from
+CompVis latent-diffusion) and requires no retraining — it works with any
+trained eps-predicting model.
+
+### Adaptive EMA decay (LitEma-style)
+
+DMI uses `LitEma` with adaptive decay `min(0.9999, (1+n)/(10+n))` where `n` is
+the number of EMA updates. Ours uses a fixed decay of `0.9999`.
+
+**Why it might be a good idea**: Adaptive decay starts lower (giving more weight
+to recent parameters early in training when they change fastest) and converges
+to 0.9999. This accelerates early training while maintaining the benefits of EMA
+at convergence. Simple to implement — just change the decay formula in `update`.
+
+### Multiple beta schedules (cosine, sqrt)
+
+DMI supports linear, cosine, sqrt_linear, and sqrt schedules. Ours supports
+linear only.
+
+**Why it might be a good idea**: Cosine schedules (from Nichol & Dhariwal,
+"Improved DDPM") add noise more gradually, which can improve sample quality —
+especially at low resolutions or with fewer timesteps. Having multiple schedules
+also enables hyperparameter search. The `DiffusionScheduler` would need to
+accept a `schedule` string and dispatch to the right formula.
+
+### x0 parameterization and L1 loss
+
+DMI supports predicting `x0` (the clean target) instead of `eps` (the noise),
+and using L1 instead of L2 for the loss. Ours uses `eps` + L2 only.
+
+**Why it might be a good idea**: `x0` prediction can be more stable at high
+noise levels and is required for certain sampling techniques. L1 loss tends to
+produce sharper outputs (less blurring than L2), which is desirable for
+precipitation fields with sharp rain/no-rain boundaries.
+
+### Classifier-free guidance (CFG) in the sampler
+
+DMI's `PLMSSampler` supports CFG via an `unconditional_guidance_scale`
+parameter. Ours has no CFG support.
+
+**Why it might be a good idea**: CFG lets the user trade off ensemble diversity
+vs. forecast fidelity at inference time by scaling the conditional prediction
+away from the unconditional prediction. Higher guidance → more confident
+(less diverse) forecasts. This is useful operational flexibility.
