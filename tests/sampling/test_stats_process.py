@@ -33,39 +33,39 @@ def _reference_all_positions(time_range, t_start_idx, data, max_nan, wet_thresho
     start_t, end_t = time_range
     chunk = data[start_t + t_start_idx : end_t + t_start_idx, :, :].astype(np.float32, copy=False)
     dim_lengths = chunk.shape
-    Dt, w, h = deltas
-    total_px = Dt * w * h
+    Dt, dy, dx = deltas  # axes (time, y, x)
+    total_px = Dt * dy * dx
     nan_mask = np.isnan(chunk)
     nan_count_win = _datacube_window_sum(nan_mask.astype(np.int16), deltas, dim_lengths)
     valid_mask = nan_count_win <= max_nan
-    idx_t_rel, idx_x, idx_y = np.where(valid_mask)
-    idx_t_rel = idx_t_rel.astype(np.int32)
-    idx_x = idx_x.astype(np.int32)
-    idx_y = idx_y.astype(np.int32)
-    idx_t_abs_rel = idx_t_rel + start_t
-    time_mask = np.isin(idx_t_abs_rel, valid_starts_gap)
-    idx_t_abs = idx_t_abs_rel + t_start_idx
-    stride_mask = (idx_t_abs % steps[0] == 0) & (idx_x % steps[1] == 0) & (idx_y % steps[2] == 0)
+    it, iy, ix = np.where(valid_mask)  # axis 0, 1 (y), 2 (x)
+    it = it.astype(np.int32)
+    iy = iy.astype(np.int32)
+    ix = ix.astype(np.int32)
+    it_abs_rel = it + start_t
+    time_mask = np.isin(it_abs_rel, valid_starts_gap)
+    it_abs = it_abs_rel + t_start_idx
+    stride_mask = (it_abs % steps[0] == 0) & (iy % steps[1] == 0) & (ix % steps[2] == 0)
     keep = time_mask & stride_mask
-    idx_t_rel = idx_t_rel[keep]
-    idx_x = idx_x[keep]
-    idx_y = idx_y[keep]
-    idx_t_abs = idx_t_abs[keep]
-    nan_count = nan_count_win[idx_t_rel, idx_x, idx_y]
+    it = it[keep]
+    iy = iy[keep]
+    ix = ix[keep]
+    it_abs = it_abs[keep]
+    nan_count = nan_count_win[it, iy, ix]
     chunk[nan_mask] = 0.0
     sum_win = _datacube_window_sum(chunk, deltas, dim_lengths)
-    sum_vals = sum_win[idx_t_rel, idx_x, idx_y]
+    sum_vals = sum_win[it, iy, ix]
     wet_mask_i = (chunk > wet_threshold).astype(np.int16)
     wet_count_win = _datacube_window_sum(wet_mask_i, deltas, dim_lengths)
-    wet_count = wet_count_win[idx_t_rel, idx_x, idx_y]
+    wet_count = wet_count_win[it, iy, ix]
     valid_count = total_px - nan_count
     with np.errstate(invalid="ignore", divide="ignore"):
         mean_vals = np.where(valid_count > 0, sum_vals / valid_count, np.nan).astype(np.float32)
     frac_wet = wet_count.astype(np.float32) / total_px
     return {
-        "t": idx_t_abs,
-        "x": idx_x,
-        "y": idx_y,
+        "t": it_abs,
+        "y": iy,  # axis 1 = y (height)
+        "x": ix,  # axis 2 = x (width)
         "nan_count": nan_count,
         "sum": sum_vals.astype(np.float32),
         "mean": mean_vals,
@@ -77,11 +77,11 @@ def _reference_all_positions(time_range, t_start_idx, data, max_nan, wet_thresho
 
 
 def _brute_force(chunk, deltas, steps, max_nan, wet_threshold, start_t, t_start_idx, valid_start_mask):
-    Dt, w, h = deltas
-    step_t, step_x, step_y = steps
-    T, X, Y = chunk.shape
-    total_px = Dt * w * h
-    # Every valid window start: it in [0, T-Dt], ix in [0, X-w], iy in [0, Y-h]
+    Dt, dy, dx = deltas  # axes (time, y, x)
+    step_t, step_y, step_x = steps
+    T, NY, NX = chunk.shape
+    total_px = Dt * dy * dx
+    # Every valid window start: it in [0, T-Dt], iy in [0, NY-dy], ix in [0, NX-dx]
     # (inclusive upper bound — the final window on each axis is included).
     rows = []
     for it in range(T - Dt + 1):
@@ -89,9 +89,9 @@ def _brute_force(chunk, deltas, steps, max_nan, wet_threshold, start_t, t_start_
             continue
         if (it + start_t + t_start_idx) % step_t != 0:
             continue
-        for ix in range(0, X - w + 1, step_x):
-            for iy in range(0, Y - h + 1, step_y):
-                win = chunk[it : it + Dt, ix : ix + w, iy : iy + h]
+        for iy in range(0, NY - dy + 1, step_y):
+            for ix in range(0, NX - dx + 1, step_x):
+                win = chunk[it : it + Dt, iy : iy + dy, ix : ix + dx]
                 filled = np.where(np.isnan(win), np.float32(0.0), win)
                 nan_c = int(np.isnan(win).sum())
                 if nan_c > max_nan:
@@ -100,8 +100,8 @@ def _brute_force(chunk, deltas, steps, max_nan, wet_threshold, start_t, t_start_
                 rows.append(
                     (
                         it + start_t + t_start_idx,
-                        ix,
-                        iy,
+                        ix,  # x = axis 2 (width)
+                        iy,  # y = axis 1 (height)
                         nan_c,
                         float(filled.sum()),
                         float(filled.sum() / valid) if valid > 0 else np.nan,

@@ -63,9 +63,10 @@ def process_chunk(
     arrays in the same column layout as the CPU path.
     """
     start_t, end_t = time_range
-    Dt, w, h = deltas
-    step_t, step_x, step_y = steps
-    total_px = Dt * w * h
+    # Data axes follow the MLCast source-data spec (§4.3): (time, y=height, x=width).
+    Dt, dy, dx = deltas
+    step_t, step_y, step_x = steps
+    total_px = Dt * dy * dx
     off_t = (-(start_t + t_start_idx)) % step_t
 
     chunk = torch.from_numpy(chunk_np).to(device, non_blocking=True)
@@ -81,7 +82,7 @@ def process_chunk(
 
     # Pass A: nan_count. cumsum keeps exact integer counts (< 2^31).
     ncw = _strided_window(nan_mask.to(torch.int32), deltas, off_t, steps, keep_t)
-    a, b, c = torch.nonzero(ncw <= max_nan, as_tuple=True)
+    a, b, c = torch.nonzero(ncw <= max_nan, as_tuple=True)  # a, b, c = axes time, y, x
     nan_count = ncw[a, b, c]
 
     # Pass B/C on the zero-filled chunk.
@@ -90,8 +91,8 @@ def process_chunk(
     wet_count = _strided_window((chunk > wet_threshold).to(torch.int32), deltas, off_t, steps, keep_t)[a, b, c]
 
     idx_t_abs = (t_rel_kept[a] + (start_t + t_start_idx)).to(torch.int32)
-    idx_x = (b * step_x).to(torch.int32)
-    idx_y = (c * step_y).to(torch.int32)
+    idx_y = (b * step_y).to(torch.int32)
+    idx_x = (c * step_x).to(torch.int32)
 
     valid_count = (total_px - nan_count).to(torch.float32)
     mean_vals = torch.where(valid_count > 0, sum_vals / valid_count, torch.full_like(sum_vals, float("nan")))

@@ -229,9 +229,10 @@ def _process_chunk(
     start_t, end_t = time_range
     chunk = data[start_t + t_start_idx : end_t + t_start_idx, :, :].astype(np.float32, copy=False)
     dim_lengths = chunk.shape
-    Dt, w, h = deltas
-    step_t, step_x, step_y = steps
-    total_px = Dt * w * h
+    # Data axes follow the MLCast source-data spec (§4.3): (time, y=height, x=width).
+    Dt, dy, dx = deltas
+    step_t, step_y, step_x = steps
+    total_px = Dt * dy * dx
 
     # Strided, gap-free time-window starts, absolute-index aligned. The time
     # window count is dim_lengths[0] - Dt + 1 (see _dim_cumsum_window); the
@@ -246,26 +247,26 @@ def _process_chunk(
 
     # --- Pass A: nan_count on the strided candidate grid -------------------------
     ncw_s = _strided_window(nan_mask, deltas, dim_lengths, off_t, steps, keep_t)
-    surv_t, surv_x, surv_y = np.where(ncw_s <= max_nan)
-    nan_count = ncw_s[surv_t, surv_x, surv_y].astype(np.int32)
+    surv_t, surv_y, surv_x = np.where(ncw_s <= max_nan)
+    nan_count = ncw_s[surv_t, surv_y, surv_x].astype(np.int32)
     del ncw_s
 
     # Map strided survivor indices back to chunk-relative / absolute coords.
     idx_t_rel = t_rel_kept[surv_t]
-    idx_x = (surv_x * step_x).astype(np.int32)
     idx_y = (surv_y * step_y).astype(np.int32)
+    idx_x = (surv_x * step_x).astype(np.int32)
     idx_t_abs = (idx_t_rel + (start_t + t_start_idx)).astype(np.int32)
 
     # --- Pass B: sum -------------------------------------------------------------
     chunk[nan_mask] = 0.0
-    sum_vals = _strided_window(chunk, deltas, dim_lengths, off_t, steps, keep_t)[surv_t, surv_x, surv_y]
+    sum_vals = _strided_window(chunk, deltas, dim_lengths, off_t, steps, keep_t)[surv_t, surv_y, surv_x]
 
     # --- Pass C: wet_count -------------------------------------------------------
     # `chunk` is now zero where it was NaN, so `> wet_threshold` is equivalent
     # to (value > threshold AND not NaN).
     wet_mask = chunk > wet_threshold
     del chunk, nan_mask
-    wet_count = _strided_window(wet_mask, deltas, dim_lengths, off_t, steps, keep_t)[surv_t, surv_x, surv_y]
+    wet_count = _strided_window(wet_mask, deltas, dim_lengths, off_t, steps, keep_t)[surv_t, surv_y, surv_x]
 
     # Derived stats.
     valid_count = total_px - nan_count
@@ -395,6 +396,12 @@ def run(args: argparse.Namespace) -> int:
     n_workers = args.workers
     time_chunk_size = 3 * Dt
 
+    # Window extents and strides in the array's (time, y, x) axis order. Per the
+    # MLCast source-data spec the spatial axes are y=height (axis 1) and
+    # x=width (axis 2), so height/step_y bind to axis 1 and width/step_x to axis 2.
+    deltas = (Dt, h, w)
+    steps = (step_T, step_Y, step_X)
+
     try:
         device, device_label = _resolve_device(args.device)
     except ValueError as e:
@@ -408,7 +415,7 @@ def run(args: argparse.Namespace) -> int:
         data = zg[args.data_var]
         ds = xr.open_zarr(args.zarr_path)
         time_array_full = pd.DatetimeIndex(ds[args.time_var].values)
-        logger.info(f"Full dataset shape: T={data.shape[0]}, X={data.shape[1]}, Y={data.shape[2]}")
+        logger.info(f"Full dataset shape: T={data.shape[0]}, Y={data.shape[1]}, X={data.shape[2]}")
         logger.info(f"Time range: {time_array_full[0]} to {time_array_full[-1]}")
         var_attrs = dict(ds[args.data_var].attrs)
     except Exception as e:
@@ -447,8 +454,8 @@ def run(args: argparse.Namespace) -> int:
     t_start_idx = valid_indices[0]
     t_end_idx = valid_indices[-1] + 1
     size_T = t_end_idx - t_start_idx
-    size_X = data.shape[1]
-    size_Y = data.shape[2]
+    size_Y = data.shape[1]  # axis 1 = y (height), per the source-data spec
+    size_X = data.shape[2]  # axis 2 = x (width)
     time_array = time_array_full[t_start_idx:t_end_idx]
 
     logger.info(f"Filtered dataset shape: T={size_T}, X={size_X}, Y={size_Y}")
@@ -574,8 +581,8 @@ def run(args: argparse.Namespace) -> int:
                     chunk_np,
                     max_nan,
                     wet_threshold,
-                    (Dt, w, h),
-                    (step_T, step_X, step_Y),
+                    deltas,
+                    steps,
                     valid_start_mask,
                     dev,
                 )
@@ -588,8 +595,8 @@ def run(args: argparse.Namespace) -> int:
             data=data,
             max_nan=max_nan,
             wet_threshold=wet_threshold,
-            deltas=(Dt, w, h),
-            steps=(step_T, step_X, step_Y),
+            deltas=deltas,
+            steps=steps,
             valid_start_mask=valid_start_mask,
         )
         with progress:
