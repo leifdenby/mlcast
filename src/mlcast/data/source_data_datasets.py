@@ -423,9 +423,15 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
         if self._time_index_slice is not None:
             t_start = self._time_index_slice.start
             t_stop = self._time_index_slice.stop
-            self.coords = self.coords[(self.coords["t"] >= t_start) & (self.coords["t"] < t_stop)].reset_index(
-                drop=True
-            )
+            # `t` is an absolute index into the full zarr, but `self.ds` is sliced to
+            # this subset (its time axis is 0-based). Keep only windows whose full
+            # depth fits inside the subset, then rebase `t` onto the sliced axis so
+            # `__getitem__` indexes it correctly and splits don't leak across the
+            # boundary.
+            self.coords = self.coords[
+                (self.coords["t"] >= t_start) & (self.coords["t"] + time_depth <= t_stop)
+            ].reset_index(drop=True)
+            self.coords["t"] = self.coords["t"] - t_start
 
         if sampler is not None:
             selected = sampler.select(self.coords, np.random.default_rng(sampling_seed))

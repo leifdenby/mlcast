@@ -176,18 +176,23 @@ def test_indexed_sampling_dataset(fp_test_dataset: Path, mock_csv: str) -> None:
 
 
 def test_indexed_sampling_dataset_time_subset(fp_test_dataset: Path, mock_csv: str) -> None:
-    """Test that subset correctly filters CSV rows by time range."""
+    """Subset keeps only index rows whose full window fits the subset, and
+    rebases their absolute ``t`` onto the sliced (0-based) store."""
     zarr_ds = xr.open_zarr(str(fp_test_dataset))
     time_index = zarr_ds.indexes["time"]
+    # mock_csv has t = [0, 5, 10]; subset [3, 21) with time_depth 3 drops t=0
+    # (before the start) and keeps t=5, 10, rebased onto the slice to [2, 7].
     ds = SourceDataIndexedDataset(
         zarr_path=str(fp_test_dataset),
         index_path=mock_csv,
         standard_names=["rainfall_flux"],
         input_steps=2,
         forecast_steps=1,
-        subset={"time": (str(time_index[0]), str(time_index[8]))},
+        time_depth=3,
+        subset={"time": (str(time_index[3]), str(time_index[20]))},
     )
     assert len(ds) == 2
+    assert sorted(ds.coords["t"].tolist()) == [2, 7]
 
 
 def test_indexed_sampling_dataset_forecast_steps_guard(fp_test_dataset: Path, mock_csv: str) -> None:
