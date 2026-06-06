@@ -18,6 +18,11 @@ jobs:
         with:
           enable-cache: true
 
+      # The local `config-diagram` hook renders the Fiddle config graph with
+      # graphviz, which shells out to the `dot` binary.
+      - run: sudo apt-get update && sudo apt-get install -y graphviz
+
       # Run pre-commit through uv so CI uses the same project-managed environment
       # as local development, including local hooks that invoke `uv run ...`.
-      - run: uv run pre-commit run --all-files
+      # pre-commit lives in the `dev` extra, so it must be synced for `uv run`.
+      - run: uv run --extra dev pre-commit run --all-files
