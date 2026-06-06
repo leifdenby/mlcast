@@ -332,6 +332,25 @@ def train_main(argv: list[str]) -> None:
     train_from_config(_config.value)
 
 
+def _run_sampling_command(name: str, remaining: list[str]) -> None:
+    """Dispatch the data-prep subcommands (``stats`` / ``validate-stats``).
+
+    Imported lazily so ``mlcast train`` never pulls the sampling deps.
+    """
+    try:
+        from mlcast.sampling import commands
+    except ImportError as exc:  # bottleneck (the [sampling] extra) not installed
+        raise SystemExit(f"`mlcast {name}` needs the sampling extra: pip install 'mlcast[sampling]' ({exc})") from None
+    from loguru import logger
+
+    logger.remove()
+    logger.add(sys.stderr, level="INFO")
+    module = commands.stats if name == "stats" else commands.validate_stats
+    sub = argparse.ArgumentParser(prog=f"mlcast {name}")
+    module.add_arguments(sub)
+    sys.exit(module.run(sub.parse_args(remaining)))
+
+
 def cli() -> None:
     """Console script entry point for the ``mlcast`` command.
 
@@ -368,6 +387,20 @@ def cli() -> None:
         "-h", "--help", action="help", default=argparse.SUPPRESS, help="Show this message and exit."
     )
 
+    # Data-prep subcommands (plain argparse, no Fiddle). Defined bare here; the
+    # command modules — and the heavy windowing deps — are imported lazily in
+    # the dispatch below, so `mlcast train` never pays for them.
+    subparsers.add_parser(
+        "stats",
+        add_help=False,
+        help="Scan a Zarr dataset and write per-datacube stats to parquet (needs mlcast[sampling]).",
+    )
+    subparsers.add_parser(
+        "validate-stats",
+        add_help=False,
+        help="Validate a stats parquet file against the canonical contract.",
+    )
+
     args, remaining = parser.parse_known_args()
 
     if args.command == "train":
@@ -395,6 +428,8 @@ def cli() -> None:
             _seed_fiddle_flag_from_yaml(yaml_path)
 
         app.run(train_main, argv=[sys.argv[0]] + remaining)
+    elif args.command in ("stats", "validate-stats"):
+        _run_sampling_command(args.command, remaining)
 
 
 if __name__ == "__main__":
