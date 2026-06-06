@@ -18,8 +18,6 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-pytest.importorskip("bottleneck")  # the stats command pulls bottleneck (the sampling extra)
-
 from mlcast.sampling.commands.stats import (
     _datacube_window_sum,
     _process_chunk,

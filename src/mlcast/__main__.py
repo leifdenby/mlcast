@@ -335,13 +335,11 @@ def train_main(argv: list[str]) -> None:
 def _run_sampling_command(name: str, remaining: list[str]) -> None:
     """Dispatch the data-prep subcommands (``stats`` / ``validate-stats``).
 
-    Imported lazily so ``mlcast train`` never pulls the sampling deps.
+    Imported lazily to keep ``mlcast train`` startup light.
     """
-    try:
-        from mlcast.sampling import commands
-    except ImportError as exc:  # bottleneck (the [sampling] extra) not installed
-        raise SystemExit(f"`mlcast {name}` needs the sampling extra: pip install 'mlcast[sampling]' ({exc})") from None
     from loguru import logger
+
+    from mlcast.sampling import commands
 
     logger.remove()
     logger.add(sys.stderr, level="INFO")
@@ -388,12 +386,12 @@ def cli() -> None:
     )
 
     # Data-prep subcommands (plain argparse, no Fiddle). Defined bare here; the
-    # command modules — and the heavy windowing deps — are imported lazily in
-    # the dispatch below, so `mlcast train` never pays for them.
+    # command modules are imported lazily in the dispatch below to keep
+    # `mlcast train` startup light.
     subparsers.add_parser(
         "stats",
         add_help=False,
-        help="Scan a Zarr dataset and write per-datacube stats to parquet (needs mlcast[sampling]).",
+        help="Scan a Zarr dataset and write per-datacube stats to parquet.",
     )
     subparsers.add_parser(
         "validate-stats",

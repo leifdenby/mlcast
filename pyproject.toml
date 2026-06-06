@@ -34,10 +34,10 @@ dynamic = [ "version" ]
 dependencies = [
   "absl-py>=2.4",
   "beartype>=0.18",
+  "bottleneck>=1.6",
   "cf-xarray>=0.10",
   "etils>=1.13",
   "fiddle>=0.3",
-  "fire>=0.7",
   "importlib-resources>=5",
   "ipykernel>=6.29.5",
   "jaxtyping>=0.2",
@@ -78,11 +78,6 @@ optional-dependencies.gpu-cu130 = [
   "torch>=2.7.1",
   "torchvision>=0.20",
 ]
-# Producer side: the `mlcast stats` / `mlcast validate-stats` data-prep CLI.
-# Only `bottleneck` is extra; zarr/xarray/pyarrow/rich/torch are already core.
-optional-dependencies.sampling = [
-  "bottleneck>=1.6",
-]
 urls.Documentation = "https://github.com/mlcast-community/mlcast"
 urls.Homepage = "https://github.com/mlcast-community/mlcast"
 urls.Issues = "https://github.com/mlcast-community/mlcast/issues"
@@ -116,9 +111,6 @@ lint.select = [
   "W",  # pycodestyle warnings
 ]
 lint.ignore = [ "F722" ]
-# These tests `importorskip` the sampling extra before importing the command
-# modules, so their imports are intentionally not at the top of the file.
-lint.per-file-ignores."tests/sampling/test_stats_*.py" = [ "E402" ]
 
 [tool.mypy]
 strict = false

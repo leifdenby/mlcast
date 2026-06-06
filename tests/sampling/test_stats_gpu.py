@@ -9,17 +9,15 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-
-torch = pytest.importorskip("torch")
-pytest.importorskip("bottleneck")  # the stats command pulls bottleneck (the sampling extra)
-if not torch.cuda.is_available():  # pragma: no cover
-    pytest.skip("no CUDA GPU available", allow_module_level=True)
+import torch
 
 # Reuse the CPU test's data generator, brute force, lexsort, and cases.
 from test_stats_process import CASES, _brute_force, _lexsort, _make_data
 
 from mlcast.sampling.commands import _stats_gpu
 from mlcast.sampling.commands.stats import _process_chunk
+
+pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="no CUDA GPU available")
 
 
 @pytest.mark.parametrize("seed,deltas,steps,max_nan,wet_thr,start_t,t_start_idx", CASES)
