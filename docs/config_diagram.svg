@@ -332,7 +332,7 @@
 <polygon fill="none" stroke="black" points="521,-108 521,-127 726,-127 726,-108 521,-108"/>
 <text text-anchor="start" x="611" y="-115" font-family="Courier,monospace" font-size="10.00">list</text>
 <polygon fill="none" stroke="black" points="521,-89 521,-108 726,-108 726,-89 521,-89"/>
-<text text-anchor="start" x="578" y="-96" font-family="Courier,monospace" font-size="10.00">&#39;rainfall_rate&#39;</text>
+<text text-anchor="start" x="578" y="-96" font-family="Courier,monospace" font-size="10.00">&#39;rainfall_flux&#39;</text>
 <polygon fill="#eeeeee" stroke="transparent" points="521,-80 521,-89 726,-89 726,-80 521,-80"/>
 <polygon fill="none" stroke="black" points="521,-80 521,-89 726,-89 726,-80 521,-80"/>
 <text text-anchor="start" x="621.5" y="-83.2" font-family="Courier,monospace" font-size="6.00">0</text>

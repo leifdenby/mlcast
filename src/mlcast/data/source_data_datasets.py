@@ -348,7 +348,7 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
         parquet (the candidate pool, optionally filtered by ``sampler``) or a
         legacy ``.csv`` (already sampled, used as-is).
     standard_names : list of str
-        List of CF standard names of variables to load (e.g., ``["rainfall_rate"]``).
+        List of CF standard names of variables to load (e.g., ``["rainfall_flux"]``).
     input_steps : int
         Number of past timesteps fed to the network as input.
     forecast_steps : int
@@ -501,7 +501,7 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
     zarr_path : str
         Path to the Zarr dataset.
     standard_names : list of str
-        List of CF standard names of variables to load (e.g., ``["rainfall_rate"]``).
+        List of CF standard names of variables to load (e.g., ``["rainfall_flux"]``).
     input_steps : int
         Number of past timesteps fed to the network as input.
     forecast_steps : int
