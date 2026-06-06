@@ -33,7 +33,7 @@ from ..data.source_data_datamodule import SourceDataDataModule
 from ..data.source_data_datasets import SourceDataIndexedDataset
 from ..models.convgru import ConvGruModel
 from ..nowcasting_module import NowcastLightningModule
-from ..sampling import ImportanceSampler
+from ..sampling import ImportanceSampler, UniformSampler
 
 
 @dataclass
@@ -78,6 +78,7 @@ def training_experiment() -> Experiment:
         dataset_factory=dataset_factory,
         splits={"time": {"train": 0.70, "val": 0.15, "test": 0.15}},
         train_sampler=ImportanceSampler(),
+        eval_sampler=UniformSampler(keep_fraction=0.1),
         batch_size=16,
         num_workers=8,
         pin_memory=True,
