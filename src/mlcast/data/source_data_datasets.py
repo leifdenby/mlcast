@@ -69,14 +69,16 @@ class DatasetSample(TypedDict, total=False):
         Past frames fed to the network as input.
     target : Float[torch.Tensor, "forecast_steps channels height width"]
         Future frames the network should predict.
-    target_mask : Float[torch.Tensor, "forecast_steps channels height width"]
-        Per-timestep, per-channel validity mask for the target (1 = valid,
-        0 = NaN in original data). Only present when ``return_mask=True``.
+    target_mask : Float[torch.Tensor, "1 channels height width"]
+        Per-cell validity mask collapsed over the whole sequence: a cell is 1
+        only if it was finite at every step (inputs and targets), else 0. Its
+        leading axis is a single step that the loss broadcasts over the forecast
+        steps. Only present when ``return_mask=True``.
     """
 
     input: Float[torch.Tensor, "input_steps channels height width"]
     target: Float[torch.Tensor, "forecast_steps channels height width"]
-    target_mask: Float[torch.Tensor, "forecast_steps channels height width"]
+    target_mask: Float[torch.Tensor, "1 channels height width"]
 
 
 def _detect_axes(ds: xr.Dataset, standard_name: str) -> tuple[str, str, str]:
@@ -297,9 +299,16 @@ class SourceDataDatasetBase(Dataset, ABC):
             Dictionary with ``'input'`` and ``'target'`` tensors, and
             optionally ``'target_mask'`` if ``self.return_mask`` is ``True``.
         """
-        # Capture target mask before NaNs are filled
+        # Validity mask, collapsed over the whole sequence: a cell is scored only
+        # if it is finite at EVERY step (inputs and targets). A temporal
+        # discontinuity anywhere makes the forecast trajectory at that cell
+        # ill-defined — and the temporal-consistency loss term meaningless — so we
+        # mask it for the whole sequence. Kept as (1, C, H, W); the loss broadcasts
+        # it over the forecast steps, so no T copies are materialised on the GPU.
+        # Computed before NaNs are filled below.
         if self.return_mask:
-            target_mask_t = torch.from_numpy((~np.isnan(data[self.input_steps :])).astype(np.float32))
+            valid = ~np.isnan(data).any(axis=0, keepdims=True)  # (1, C, H, W)
+            target_mask_t = torch.from_numpy(valid.astype(np.float32))
 
         # source data may be float64, but the model and the rest of the
         # training pipeline operate in float32.

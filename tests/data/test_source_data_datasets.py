@@ -169,7 +169,7 @@ def test_indexed_sampling_dataset(fp_test_dataset: Path, mock_csv: str) -> None:
 
     assert input_t.shape == (input_steps, 1, 16, 16)
     assert target_t.shape == (forecast_steps, 1, 16, 16)
-    assert target_mask_t.shape == (forecast_steps, 1, 16, 16)
+    assert target_mask_t.shape == (1, 1, 16, 16)  # collapsed over the sequence
     assert isinstance(input_t, torch.Tensor)
     assert isinstance(target_t, torch.Tensor)
     assert isinstance(target_mask_t, torch.Tensor)
@@ -235,10 +235,36 @@ def test_random_sampling_dataset(fp_test_dataset: Path) -> None:
 
     assert input_t.shape == (input_steps, 1, 32, 32)
     assert target_t.shape == (forecast_steps, 1, 32, 32)
-    assert target_mask_t.shape == (forecast_steps, 1, 32, 32)
+    assert target_mask_t.shape == (1, 1, 32, 32)  # collapsed over the sequence
     assert input_t.dtype == torch.float32
     assert target_t.dtype == torch.float32
     assert target_mask_t.dtype == torch.float32
+
+
+def test_target_mask_collapses_over_sequence(fp_test_dataset: Path) -> None:
+    """A cell that is NaN at *any* step (input or target) must be masked across
+    every forecast step — a temporal discontinuity makes the trajectory there
+    ill-defined, so the cell is not scored anywhere in the sequence."""
+    input_steps, forecast_steps = 3, 2
+    ds = SourceDataRandomSamplingDataset(
+        zarr_path=str(fp_test_dataset),
+        standard_names=["rainfall_flux"],
+        input_steps=input_steps,
+        forecast_steps=forecast_steps,
+        width=8,
+        height=8,
+        return_mask=True,
+    )
+    steps = input_steps + forecast_steps
+    data = np.zeros((steps, 1, 8, 8), dtype=np.float32)
+    data[1, 0, 2, 3] = np.nan  # NaN at one input step
+    data[steps - 1, 0, 5, 5] = np.nan  # NaN at the last forecast step
+    mask = ds._build_sample(data)["target_mask"].numpy()
+
+    assert mask.shape == (1, 1, 8, 8)  # collapsed over the sequence
+    assert mask[0, 0, 2, 3] == 0  # NaN at an input step masks the cell
+    assert mask[0, 0, 5, 5] == 0  # NaN at a forecast step masks the cell
+    assert mask[0, 0, 0, 0] == 1  # a cell valid at every step stays valid
 
 
 def test_random_sampling_dataset_time_subset(fp_test_dataset: Path) -> None:
