@@ -15,6 +15,7 @@ maintainers = [
 authors = [
   { name = "Gabriele Franch", email = "franch@fbk.eu" },
   { name = "Leif Denby", email = "lcd@dmi.dk" },
+  { name = "Oscar Dewasmes", email = "oscar.dewasmes@meteo.fr" },
 ]
 requires-python = ">=3.11"
 classifiers = [
