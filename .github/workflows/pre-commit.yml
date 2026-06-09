@@ -18,6 +18,9 @@ jobs:
         with:
           enable-cache: true
 
+      # pre-commit is a dev dependency, so we need to install it before we can run it.
+      - run: uv sync --extra dev
+
       # Run pre-commit through uv so CI uses the same project-managed environment
       # as local development, including local hooks that invoke `uv run ...`.
       - run: uv run pre-commit run --all-files
