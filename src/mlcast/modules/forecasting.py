@@ -15,7 +15,6 @@ from mlcast.data.normalization import DENORMALIZATION_REGISTRY, NORMALIZATION_RE
 from mlcast.losses import build_loss
 from mlcast.models.autoencoder import AutoencoderNet
 from mlcast.models.diffusion.ema import ExponentialMovingAverage
-from mlcast.models.diffusion.loss import DiffusionLoss
 from mlcast.models.diffusion.net import LatentDiffusionNet
 from mlcast.models.diffusion.sampler import DiffusionSampler
 from mlcast.visualization import log_images
@@ -477,9 +476,6 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         Number of forecast timesteps decoded during inference.
     ensemble_size : int, optional
         Number of ensemble members decoded during inference. Default is ``1``.
-    loss : DiffusionLoss or None, optional
-        Latent diffusion loss module. If ``None``, ``DiffusionLoss`` is built
-        from ``diffusion_net``. Default is ``None``.
     optimizer : Callable[..., torch.optim.Optimizer] or None, optional
         Optimizer factory. Default is ``None`` (Adam).
     lr_scheduler : Callable[..., torch.optim.lr_scheduler.LRScheduler] or None, optional
@@ -501,7 +497,6 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         diffusion_net: LatentDiffusionNet,
         forecast_steps: int,
         ensemble_size: int = 1,
-        loss: DiffusionLoss | None = None,
         optimizer: Callable[..., torch.optim.Optimizer] | None = None,
         lr_scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | None = None,
         ema_decay: float | None = None,
@@ -515,7 +510,6 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         self.save_hyperparameters("forecast_steps", "ensemble_size", "ema_decay")
         self.autoencoder = autoencoder
         self.diffusion_net = diffusion_net
-        self.loss_fn = loss if loss is not None else DiffusionLoss(diffusion_net)
         self.sampler = DiffusionSampler(diffusion_net)
         self.ema = ExponentialMovingAverage(diffusion_net, decay=ema_decay) if ema_decay is not None else None
 
@@ -583,7 +577,17 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
         with torch.no_grad():
             input_latents = self.autoencoder.encode(batch["input"])
             target_latents = self.autoencoder.encode(batch["target"])
-        loss = self.loss_fn(input_latents, target_latents)
+
+        timesteps = torch.randint(
+            0,
+            self.diffusion_net.num_timesteps,
+            (target_latents.shape[0],),
+            device=target_latents.device,
+        )
+        noise = torch.randn_like(target_latents)
+        noised_target = self.diffusion_net.q_sample(target_latents, timesteps=timesteps, noise=noise)
+        predicted_noise = self.diffusion_net(noised_target, timesteps, input_latents)
+        loss = torch.nn.functional.mse_loss(predicted_noise, noise)
         self.log(f"{split}/loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
         return loss
 
