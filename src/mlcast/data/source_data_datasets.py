@@ -7,6 +7,7 @@ random-sampling dataset.
 import time
 import warnings
 from abc import ABC, abstractmethod
+from numbers import Real
 from pathlib import Path
 from typing import Any, TypedDict
 
@@ -44,12 +45,28 @@ def _load_sampling_index(path: str) -> pd.DataFrame:
 
 def _time_range_to_index_slice(
     zarr_path: str,
-    time_range: tuple[str, str],
+    time_range: tuple[Any, Any],
     storage_options: dict[str, Any] | None = None,
 ) -> slice:
-    """Convert an inclusive ISO time range into a zarr integer slice."""
+    """Convert a time subset into a zarr integer slice.
+
+    Supports either an inclusive ISO datetime tuple or a half-open fraction
+    tuple. Fraction tuples are interpreted as ``[start, end)`` over the time
+    axis length.
+    """
     ds = xr.open_zarr(zarr_path, storage_options=storage_options)
     time_values = ds.indexes["time"]
+    if all(isinstance(value, Real) and not isinstance(value, bool) for value in time_range):
+        t_start_fraction = float(time_range[0])
+        t_end_fraction = float(time_range[1])
+        if not 0.0 <= t_start_fraction <= t_end_fraction <= 1.0:
+            raise ValueError(f"time_range fractions must satisfy 0.0 <= start <= end <= 1.0, got {time_range!r}.")
+
+        n_time = len(time_values)
+        t_start = int(round(n_time * t_start_fraction))
+        t_end = int(round(n_time * t_end_fraction))
+        return slice(t_start, t_end)
+
     t_start = time_values.get_indexer([pd.Timestamp(time_range[0])], method="bfill")[0]
     t_end = time_values.get_indexer([pd.Timestamp(time_range[1])], method="ffill")[0]
     if t_start < 0 or t_end < 0:
@@ -131,8 +148,8 @@ class SourceDataDatasetBase(Dataset, ABC):
     """Abstract base class for mlcast Zarr-backed spatio-temporal datasets.
 
     Subclasses must implement :meth:`__len__` and :meth:`__getitem__`.
-    All common initialisation, Zarr access, CF-axis resolution, augmentation,
-    and the ``steps`` property live here.
+    All common initialisation, Zarr access, CF-axis resolution, time
+    subsetting, augmentation, and the ``steps`` property live here.
 
     Parameters
     ----------
@@ -151,6 +168,10 @@ class SourceDataDatasetBase(Dataset, ABC):
         If ``True``, use a fixed random seed (42). Default is ``False``.
     augment : bool, optional
         If ``True``, apply random spatial augmentations. Default is ``False``.
+    subset : dict or None, optional
+        Coordinate subsetting specification. Only ``{"time": ...}`` is
+        supported. The time value may be either an inclusive ISO datetime tuple
+        or a half-open fraction tuple ``(start, end)`` in ``[0.0, 1.0]``.
     width : int, optional
         Spatial width of each crop. Default is ``256``.
     height : int, optional
@@ -168,6 +189,7 @@ class SourceDataDatasetBase(Dataset, ABC):
         return_mask: bool = False,
         deterministic: bool = False,
         augment: bool = False,
+        subset: dict[str, Any] | None = None,
         width: int = 256,
         height: int = 256,
         storage_options: dict[str, Any] | None = None,
@@ -189,8 +211,23 @@ class SourceDataDatasetBase(Dataset, ABC):
         self.h = height
         self.rng = np.random.default_rng(seed=42) if deterministic else np.random.default_rng(int(time.time()))
 
+        if subset:
+            for key in subset:
+                if key != "time":
+                    raise NotImplementedError(
+                        f"subset key {key!r} is not supported. Only 'time' subsetting is currently implemented."
+                    )
+
+        time_range = (subset or {}).get("time")
+        if time_range is not None:
+            self._time_index_slice: slice | None = _time_range_to_index_slice(zarr_path, time_range, storage_options)
+        else:
+            self._time_index_slice = None
+
         self._validate_standard_names()
         self.t_dim, self.y_dim, self.x_dim = _detect_axes(self.ds, self.standard_names[0])
+        # Drop the eagerly opened dataset; workers will reopen it lazily via `ds`.
+        self._ds = None
 
     # ------------------------------------------------------------------
     # Properties
@@ -370,8 +407,9 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
     augment : bool, optional
         If ``True``, apply random spatial augmentations (rotation, flips). Default is ``False``.
     subset : dict or None, optional
-        Coordinate subsetting specification. Only ``{"time": (start, end)}``
-        is supported, where the time range is inclusive and uses ISO strings.
+        Coordinate subsetting specification. Only ``{"time": ...}`` is
+        supported. The time value may be either an inclusive ISO datetime tuple
+        or a half-open fraction tuple ``(start, end)`` in ``[0.0, 1.0]``.
     width : int, optional
         Spatial width of each crop. Default is ``256``.
     height : int, optional
@@ -404,17 +442,6 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
         sampler: Sampler | None = None,
         sampling_seed: int = 42,
     ) -> None:
-        if subset:
-            for key in subset:
-                if key != "time":
-                    raise NotImplementedError(
-                        f"subset key {key!r} is not supported. Only 'time' subsetting is currently implemented."
-                    )
-        time_range: tuple[str, str] | None = (subset or {}).get("time")
-        if time_range is not None:
-            self._time_index_slice: slice | None = _time_range_to_index_slice(zarr_path, time_range, storage_options)
-        else:
-            self._time_index_slice = None
         super().__init__(
             zarr_path=zarr_path,
             standard_names=standard_names,
@@ -423,6 +450,7 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
             return_mask=return_mask,
             deterministic=deterministic,
             augment=augment,
+            subset=subset,
             width=width,
             height=height,
             storage_options=storage_options,
@@ -450,11 +478,6 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
 
         if self.steps > self.dt:
             print(f"Warning: requested steps ({self.steps}) > sampled time window ({self.dt})")
-
-        # Close the store: metadata has been extracted into plain attributes above.
-        # Each DataLoader worker will reopen it via the `ds` property in its own
-        # event loop, avoiding asyncio "Future attached to a different loop" errors.
-        self._ds = None
 
     def __len__(self) -> int:
         """Get the number of samples in the dataset.
@@ -529,8 +552,9 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
     augment : bool, optional
         If ``True``, apply random spatial augmentations (rotation, flips). Default is ``False``.
     subset : dict or None, optional
-        Coordinate subsetting specification. Only ``{"time": (start, end)}``
-        is supported, where the time range is inclusive and uses ISO strings.
+        Coordinate subsetting specification. Only ``{"time": ...}`` is
+        supported. The time value may be either an inclusive ISO datetime tuple
+        or a half-open fraction tuple ``(start, end)`` in ``[0.0, 1.0]``.
     width : int, optional
         Spatial width of each crop. Default is ``256``.
     height : int, optional
@@ -557,17 +581,6 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
         storage_options: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
-        if subset:
-            for key in subset:
-                if key != "time":
-                    raise NotImplementedError(
-                        f"subset key {key!r} is not supported. Only 'time' subsetting is currently implemented."
-                    )
-        time_range: tuple[str, str] | None = (subset or {}).get("time")
-        if time_range is not None:
-            self._time_index_slice: slice | None = _time_range_to_index_slice(zarr_path, time_range, storage_options)
-        else:
-            self._time_index_slice = None
         super().__init__(
             zarr_path=zarr_path,
             standard_names=standard_names,
@@ -576,6 +589,7 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
             return_mask=return_mask,
             deterministic=deterministic,
             augment=augment,
+            subset=subset,
             width=width,
             height=height,
             storage_options=storage_options,
@@ -594,11 +608,6 @@ class SourceDataRandomSamplingDataset(SourceDataDatasetBase):
             raise ValueError(f"Requested height ({self.h}) > available Y dimension ({self.max_y})")
         if self.w > self.max_x:
             raise ValueError(f"Requested width ({self.w}) > available X dimension ({self.max_x})")
-
-        # Close the store: metadata has been extracted into plain attributes above.
-        # Each DataLoader worker will reopen it via the `ds` property in its own
-        # event loop, avoiding asyncio "Future attached to a different loop" errors.
-        self._ds = None
 
     def __len__(self) -> int:
         """Get the number of samples in the dataset.

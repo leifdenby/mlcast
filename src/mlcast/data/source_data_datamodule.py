@@ -12,7 +12,7 @@ from loguru import logger
 from torch.utils.data import DataLoader, Dataset
 
 from mlcast.data.splits import (
-    compute_split_ranges_from_splitting_ratios,
+    compute_split_fraction_ranges_from_splitting_ratios,
     splitting_uses_fractions,
     splitting_uses_tuple_ranges,
     validate_splits,
@@ -34,8 +34,9 @@ class SourceDataDataModule(pl.LightningDataModule):
     splits : dict of {str: dict}
         Nested mapping ``{coord: {split_name: value, ...}, ...}`` describing
         train/val/test subsets. Currently only the ``time`` coordinate is
-        supported. Ratio mode uses float fractions, while datetime mode uses
-        inclusive ``(start, end)`` ISO 8601 string tuples.
+        supported. Ratio mode uses scalar fractions which are converted to
+        half-open fraction tuples, while datetime mode uses inclusive
+        ``(start, end)`` ISO 8601 string tuples.
     train_sampler, eval_sampler : Sampler or None, optional
         Per-split candidate sampler passed to the factory (train vs val/test),
         like ``augment``. Default ``None`` uses the full index. Keep importance
@@ -66,9 +67,10 @@ class SourceDataDataModule(pl.LightningDataModule):
 
         Splits are assembled into per-dataset ``subset`` dictionaries.
         Datetime-mode splits are passed through unchanged, while ratio-mode
-        splits are first resolved against the zarr coordinate values and then
-        converted to inclusive coordinate ranges before dataset instantiation.
-        Dataset construction depends on the requested Lightning stage:
+        splits are normalized into half-open fraction tuples that the dataset
+        resolves against the underlying coordinate values when it opens the
+        Zarr store. Dataset construction depends on the requested Lightning
+        stage:
 
         - ``"fit"`` builds train and validation datasets;
         - ``"validate"`` builds only the validation dataset;
@@ -112,19 +114,15 @@ class SourceDataDataModule(pl.LightningDataModule):
                 # tuple-based splits are expected to present the start and end
                 # of each split, and so are passed through directly as the
                 # subset values for each split
-                coord_values_per_split: dict[str, tuple[str, str] | None] = {
+                coord_values_per_split: dict[str, tuple[Any, Any] | None] = {
                     "train": coord_splits["train"],
                     "val": coord_splits["val"],
                     "test": coord_splits.get("test"),
                 }
             elif splitting_uses_fractions(coord_splits):
-                # for ratio-based splits, the splitting start-end range tuples
-                # are constructed by breaking up the given coordinate in
-                # successive segments (the succession is defined from the order
-                # of the keys in the splits dict)
-                coord_values_per_split = compute_split_ranges_from_splitting_ratios(
-                    self.dataset_factory, coord, coord_splits
-                )
+                # Ratio-based splits are normalized into fraction ranges here;
+                # the dataset turns those fractions into coordinate slices.
+                coord_values_per_split = compute_split_fraction_ranges_from_splitting_ratios(coord_splits)
             else:
                 raise NotImplementedError(f"Unsupported split mode for coordinate {coord!r}: {coord_splits!r}")
 

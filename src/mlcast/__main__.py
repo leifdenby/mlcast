@@ -86,6 +86,10 @@ def get_cli_examples(cfg: fdl.Buildable) -> list[tuple[str, str]]:
             f"Override the optimizer learning rate (default lr: {cfg.pl_module.optimizer.lr})",
             "--config set:pl_module.optimizer.lr=0.1",
         ),
+        (
+            "Set fraction-based train/val/test splits (dataset resolves them lazily)",
+            '--config "fiddler:use_ratio_splits(train=0.7, val=0.15)"',
+        ),
     ]
 
 

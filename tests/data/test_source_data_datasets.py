@@ -195,6 +195,25 @@ def test_indexed_sampling_dataset_time_subset(fp_test_dataset: Path, mock_csv: s
     assert sorted(ds.coords["t"].tolist()) == [2, 7]
 
 
+def test_indexed_sampling_dataset_fraction_subset(fp_test_dataset: Path, mock_csv: str) -> None:
+    """Fraction-based subsets are resolved inside the dataset, not the datamodule."""
+    zarr_ds = xr.open_zarr(str(fp_test_dataset))
+    time_index = zarr_ds.indexes["time"]
+    ds = SourceDataIndexedDataset(
+        zarr_path=str(fp_test_dataset),
+        index_path=mock_csv,
+        standard_names=["rainfall_flux"],
+        input_steps=2,
+        forecast_steps=1,
+        time_depth=3,
+        subset={"time": (0.05, 0.15)},
+    )
+
+    assert len(ds) == 2
+    assert sorted(ds.coords["t"].tolist()) == [0, 5]
+    assert len(time_index) == 100
+
+
 def test_indexed_sampling_dataset_forecast_steps_guard(fp_test_dataset: Path, mock_csv: str) -> None:
     """Test that instantiation with input_steps=0 raises ValueError."""
     with pytest.raises(ValueError, match="input_steps"):
@@ -282,6 +301,24 @@ def test_random_sampling_dataset_time_subset(fp_test_dataset: Path) -> None:
 
     assert ds.max_t == 50
     assert len(ds) == 10
+
+
+def test_random_sampling_dataset_fraction_subset(fp_test_dataset: Path) -> None:
+    """Fraction subsets are resolved before random sampling dimensions are read."""
+    zarr_ds = xr.open_zarr(str(fp_test_dataset))
+    time_index = zarr_ds.indexes["time"]
+    ds = SourceDataRandomSamplingDataset(
+        zarr_path=str(fp_test_dataset),
+        standard_names=["rainfall_flux"],
+        input_steps=3,
+        forecast_steps=2,
+        subset={"time": (0.05, 0.2)},
+        epoch_size=10,
+    )
+
+    assert ds.max_t == 15
+    assert len(ds) == 10
+    assert len(time_index) == 100
 
 
 def test_random_sampling_dataset_forecast_steps_guard(fp_test_dataset: Path) -> None:

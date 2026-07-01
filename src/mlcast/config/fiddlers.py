@@ -87,7 +87,12 @@ def use_random_sampler(cfg: fdl.Config) -> None:
 
 
 def use_ratio_splits(cfg: fdl.Config, train: float, val: float) -> None:
-    """Fiddler to set fraction-based train/val/test splits on the data module."""
+    """Fiddler to set fraction-based train/val/test splits on the data config.
+
+    The data module forwards these fractions to the dataset, which converts them
+    into half-open fraction ranges and resolves them against the Zarr time axis
+    when the dataset is instantiated.
+    """
     cfg.data.splits = {"time": {"train": train, "val": val, "test": 1.0 - train - val}}
 
 

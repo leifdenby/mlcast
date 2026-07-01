@@ -261,7 +261,7 @@ experiment.run()              # trainer.fit() + trainer.test()
 | `set_variables` | `standard_names` | Sets the list of input variables on the dataset and updates `network.input_channels` to match |
 | `toggle_masking` | `enabled` | Toggles masked-loss mode by setting both `dataset_factory.return_mask` and `pl_module.masked_loss` to the same value |
 | `use_anon_s3_dataset` | `zarr_path`, `endpoint_url` | Points the dataset at an anonymous S3 object store; sets `zarr_path` and the required `storage_options` together |
-| `use_ratio_splits` | `train`, `val` | Sets fraction-based train/val/test time splits on the data module (test = 1 − train − val) |
+| `use_ratio_splits` | `train`, `val` | Sets fraction-based train/val/test splits; the data module normalizes them into fraction ranges and the dataset resolves them against time lazily (test = 1 − train − val) |
 | `use_random_sampler` | *(none)* | Switches the dataset factory to the on-the-fly random sampler (useful during development when no precomputed sampling index is available) |
 
 ## Preparing training data

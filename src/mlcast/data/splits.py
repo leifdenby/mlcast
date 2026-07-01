@@ -1,24 +1,21 @@
+"""Utilities to facilitate dataset splitting based on coordinate values.
+
+Two split modes are supported:
+
+1. Fraction mode: each split is defined by a scalar fraction of the total
+   coordinate range (e.g., ``0.7`` for training, ``0.2`` for validation, and
+   ``0.1`` for testing). These are normalized into half-open fraction tuples
+   such as ``(0.0, 0.7)``, ``(0.7, 0.9)``, and ``(0.9, 1.0)``.
+
+2. Tuple-range mode: each split is defined by an explicit ``(start, end)``
+   tuple of coordinate values (e.g., ``("2020-01-01", "2020-12-31")`` for
+   training). In this mode, the values are passed through unchanged.
 """
-Utilities to facilitate dataset splitting based on coordinate values, supporting two modes of specification:
 
-1. Fraction mode: each split is defined by a fraction of the total coordinate
-range (e.g., 0.7 for training, 0.2 for validation, and 0.1 for testing).
-The fractions are resolved into coordinate value range tuples by inspecting
-the coordinate values of the source dataset.
-
-2. Tuple-range mode: each split is defined by an explicit (start, end) tuple of
-coordinate values (e.g., ("2020-01-01", "2020-12-31") for training). In this
-mode, the split values are passed through directly as the subset configuration
-for each split.
-"""
-
-from collections.abc import Callable
 from numbers import Real
 from typing import Any
 
-import xarray as xr
 from loguru import logger
-from torch.utils.data import Dataset
 
 _SPLIT_NAMES = frozenset({"train", "val", "test"})
 _SUPPORTED_COORDS = frozenset({"time"})
@@ -160,20 +157,13 @@ def validate_splits(splits: dict[str, dict[str, Any]]) -> None:
             )
 
 
-def compute_split_ranges_from_splitting_ratios(
-    dataset_factory: Callable[..., Dataset],
-    coord: str,
+def compute_split_fraction_ranges_from_splitting_ratios(
     coord_splits: dict[str, Any],
-) -> dict[str, tuple[str, str]]:
-    """Resolve fraction-mode splits into inclusive coordinate ranges.
+) -> dict[str, tuple[float, float] | None]:
+    """Normalize scalar split fractions into half-open fraction ranges.
 
     Parameters
     ----------
-    dataset_factory : Callable[..., Dataset]
-        Dataset factory carrying the ``zarr_path`` and optional
-        ``storage_options`` needed to open the source zarr store.
-    coord : str
-        Coordinate name to split. Currently this is expected to be ``"time"``.
     coord_splits : dict[str, Any]
         Fraction-mode split configuration for a single coordinate. Must contain
         float values for ``"train"`` and ``"val"``. ``"test"`` is optional;
@@ -181,28 +171,21 @@ def compute_split_ranges_from_splitting_ratios(
 
     Returns
     -------
-    dict[str, tuple[str, str]]
-        Inclusive ``(start, end)`` coordinate ranges for the configured splits.
+    dict[str, tuple[float, float] | None]
+        Half-open fraction ranges for the configured splits.
     """
-    zarr_path = getattr(dataset_factory, "zarr_path", None) or dataset_factory.keywords["zarr_path"]
-    storage_options = getattr(dataset_factory, "storage_options", None) or dataset_factory.keywords.get(
-        "storage_options"
-    )
-    ds = xr.open_zarr(zarr_path, storage_options=storage_options)
-    coord_vals = ds.indexes[coord]
-    n = len(coord_vals)
+    train = float(coord_splits["train"])
+    val = float(coord_splits["val"])
 
-    train_end = int(n * coord_splits["train"])
-    val_end = train_end + int(n * coord_splits["val"])
-
-    split_ranges = {
-        "train": (str(coord_vals[0]), str(coord_vals[train_end - 1])),
-        "val": (str(coord_vals[train_end]), str(coord_vals[val_end - 1])),
+    split_ranges: dict[str, tuple[float, float] | None] = {
+        "train": (0.0, train),
+        "val": (train, train + val),
     }
 
     test_fraction = coord_splits.get("test")
     if isinstance(test_fraction, Real) and not isinstance(test_fraction, bool):
-        test_end = val_end + int(n * test_fraction)
-        split_ranges["test"] = (str(coord_vals[val_end]), str(coord_vals[test_end - 1]))
+        split_ranges["test"] = (train + val, train + val + float(test_fraction))
+    else:
+        split_ranges["test"] = None
 
     return split_ranges
