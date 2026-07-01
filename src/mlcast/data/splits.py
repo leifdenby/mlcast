@@ -24,6 +24,69 @@ _SPLIT_NAMES = frozenset({"train", "val", "test"})
 _SUPPORTED_COORDS = frozenset({"time"})
 
 
+def _validate_single_coord_splits(coord: str, coord_splits: dict[str, Any]) -> None:
+    unknown_names = set(coord_splits) - _SPLIT_NAMES
+    if unknown_names:
+        raise ValueError(
+            f"Unknown split name(s) in splits[{coord!r}]: {sorted(unknown_names)}. "
+            f"Must be one of {sorted(_SPLIT_NAMES)}."
+        )
+
+    for required in ("train", "val"):
+        if required not in coord_splits:
+            raise ValueError(f"splits[{coord!r}] must contain '{required}'.")
+
+    train_is_tuple = isinstance(coord_splits["train"], tuple)
+    val_is_tuple = isinstance(coord_splits["val"], tuple)
+    if train_is_tuple != val_is_tuple:
+        raise ValueError(
+            f"Cannot mix datetime tuples and float ratios in splits[{coord!r}]. "
+            "'train' and 'val' must both be floats (fraction mode) or both be "
+            "(start, end) tuples (tuple-range mode)."
+        )
+
+    if splitting_uses_fractions(coord_splits):
+        for split_name in ("train", "val"):
+            split_val = coord_splits[split_name]
+            if not isinstance(split_val, Real) or isinstance(split_val, bool):
+                raise ValueError(
+                    f"In fraction mode splits[{coord!r}]['{split_name}'] must be float-like, got {split_val!r}."
+                )
+        ratio_sum = coord_splits["train"] + coord_splits["val"]
+        test_val = coord_splits.get("test")
+        if test_val is not None and (not isinstance(test_val, Real) or isinstance(test_val, bool)):
+            raise ValueError(
+                f"In fraction mode splits[{coord!r}]['test'] must be float-like or None, got {test_val!r}."
+            )
+        if isinstance(test_val, Real) and not isinstance(test_val, bool):
+            ratio_sum += test_val
+        if ratio_sum > 1.0 + 1e-9:
+            raise ValueError(f"Split fractions in splits[{coord!r}] sum to {ratio_sum:.4f}, which exceeds 1.0.")
+        if abs(ratio_sum - 1.0) > 1e-9:
+            logger.warning(
+                "Split fractions in splits[{}] sum to {:.4f}, not 1.0. Any unallocated remainder will be unused.",
+                coord,
+                ratio_sum,
+            )
+    elif splitting_uses_tuple_ranges(coord_splits):
+        if "test" not in coord_splits:
+            raise ValueError(
+                f"In tuple-range mode splits[{coord!r}] must contain 'test' "
+                "(set to a (start, end) tuple or None to skip the test split)."
+            )
+        test_val = coord_splits["test"]
+        if test_val is not None and not isinstance(test_val, tuple):
+            raise ValueError(
+                f"In tuple-range mode splits[{coord!r}]['test'] must be a "
+                f"(start, end) tuple or None, got {test_val!r}."
+            )
+    else:
+        raise ValueError(
+            f"splits[{coord!r}] must use a single supported mode: all defined split values must be either "
+            "float-like fractions or tuple ranges."
+        )
+
+
 def splitting_uses_fractions(coord_splits: dict[str, Any]) -> bool:
     """Return whether a coordinate split config uses fraction mode.
 
@@ -91,73 +154,28 @@ def validate_splits(splits: dict[str, dict[str, Any]]) -> None:
     if not splits:
         raise ValueError("splits must not be empty.")
 
+    if set(splits).issubset(_SUPPORTED_COORDS):
+        for coord, coord_splits in splits.items():
+            _validate_single_coord_splits(coord, coord_splits)
+        return
+
+    nested_splits = all(
+        isinstance(coord_splits, dict) and set(coord_splits).issubset(_SUPPORTED_COORDS)
+        for coord_splits in splits.values()
+    )
+    if nested_splits:
+        for dataset_name, dataset_splits in splits.items():
+            try:
+                validate_splits(dataset_splits)
+            except ValueError as exc:
+                raise ValueError(f"Invalid splits for dataset {dataset_name!r}: {exc}") from exc
+        return
+
     unknown_coords = set(splits) - _SUPPORTED_COORDS
-    if unknown_coords:
-        raise ValueError(
-            f"Unknown coordinate(s) in splits: {sorted(unknown_coords)}. Supported: {sorted(_SUPPORTED_COORDS)}."
-        )
-
-    for coord, coord_splits in splits.items():
-        unknown_names = set(coord_splits) - _SPLIT_NAMES
-        if unknown_names:
-            raise ValueError(
-                f"Unknown split name(s) in splits[{coord!r}]: {sorted(unknown_names)}. "
-                f"Must be one of {sorted(_SPLIT_NAMES)}."
-            )
-
-        for required in ("train", "val"):
-            if required not in coord_splits:
-                raise ValueError(f"splits[{coord!r}] must contain '{required}'.")
-
-        train_is_tuple = isinstance(coord_splits["train"], tuple)
-        val_is_tuple = isinstance(coord_splits["val"], tuple)
-        if train_is_tuple != val_is_tuple:
-            raise ValueError(
-                f"Cannot mix datetime tuples and float ratios in splits[{coord!r}]. "
-                "'train' and 'val' must both be floats (fraction mode) or both be "
-                "(start, end) tuples (tuple-range mode)."
-            )
-
-        if splitting_uses_fractions(coord_splits):
-            for split_name in ("train", "val"):
-                split_val = coord_splits[split_name]
-                if not isinstance(split_val, Real) or isinstance(split_val, bool):
-                    raise ValueError(
-                        f"In fraction mode splits[{coord!r}]['{split_name}'] must be float-like, got {split_val!r}."
-                    )
-            ratio_sum = coord_splits["train"] + coord_splits["val"]
-            test_val = coord_splits.get("test")
-            if test_val is not None and (not isinstance(test_val, Real) or isinstance(test_val, bool)):
-                raise ValueError(
-                    f"In fraction mode splits[{coord!r}]['test'] must be float-like or None, got {test_val!r}."
-                )
-            if isinstance(test_val, Real) and not isinstance(test_val, bool):
-                ratio_sum += test_val
-            if ratio_sum > 1.0 + 1e-9:
-                raise ValueError(f"Split fractions in splits[{coord!r}] sum to {ratio_sum:.4f}, which exceeds 1.0.")
-            if abs(ratio_sum - 1.0) > 1e-9:
-                logger.warning(
-                    "Split fractions in splits[{}] sum to {:.4f}, not 1.0. Any unallocated remainder will be unused.",
-                    coord,
-                    ratio_sum,
-                )
-        elif splitting_uses_tuple_ranges(coord_splits):
-            if "test" not in coord_splits:
-                raise ValueError(
-                    f"In tuple-range mode splits[{coord!r}] must contain 'test' "
-                    "(set to a (start, end) tuple or None to skip the test split)."
-                )
-            test_val = coord_splits["test"]
-            if test_val is not None and not isinstance(test_val, tuple):
-                raise ValueError(
-                    f"In tuple-range mode splits[{coord!r}]['test'] must be a "
-                    f"(start, end) tuple or None, got {test_val!r}."
-                )
-        else:
-            raise ValueError(
-                f"splits[{coord!r}] must use a single supported mode: all defined split values must be either "
-                "float-like fractions or tuple ranges."
-            )
+    raise ValueError(
+        f"Unknown coordinate(s) or invalid combined split keys in splits: {sorted(unknown_coords)}. "
+        f"Supported coordinates: {sorted(_SUPPORTED_COORDS)}."
+    )
 
 
 def compute_split_ranges_from_splitting_ratios(
@@ -184,10 +202,15 @@ def compute_split_ranges_from_splitting_ratios(
     dict[str, tuple[str, str]]
         Inclusive ``(start, end)`` coordinate ranges for the configured splits.
     """
-    zarr_path = getattr(dataset_factory, "zarr_path", None) or dataset_factory.keywords["zarr_path"]
-    storage_options = getattr(dataset_factory, "storage_options", None) or dataset_factory.keywords.get(
-        "storage_options"
-    )
+    zarr_path = getattr(dataset_factory, "zarr_path", None)
+    if zarr_path is None:
+        keywords = getattr(dataset_factory, "keywords", None) or {}
+        zarr_path = keywords["zarr_path"]
+
+    storage_options = getattr(dataset_factory, "storage_options", None)
+    if storage_options is None:
+        keywords = getattr(dataset_factory, "keywords", None) or {}
+        storage_options = keywords.get("storage_options")
     ds = xr.open_zarr(zarr_path, storage_options=storage_options)
     coord_vals = ds.indexes[coord]
     n = len(coord_vals)

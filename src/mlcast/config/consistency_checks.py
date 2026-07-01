@@ -15,6 +15,47 @@ import fiddle as fdl
 from loguru import logger
 
 
+def _shared_dataset_factories(dataset_factory: fdl.Buildable | object):
+    dataset_factories = getattr(dataset_factory, "dataset_factories", None)
+    if dataset_factories is None:
+        return None
+    return dataset_factories
+
+
+def _dataset_factory_standard_names(dataset_factory: fdl.Buildable | object) -> list[str]:
+    dataset_factories = _shared_dataset_factories(dataset_factory)
+    if dataset_factories is None:
+        return list(dataset_factory.standard_names)
+
+    standard_names = [list(factory.standard_names) for factory in dataset_factories.values()]
+    num_vars_set = {len(names) for names in standard_names}
+    if len(num_vars_set) != 1:
+        raise ValueError("All dataset factories must have the same number of variables (standard_names).")
+    return standard_names[0]
+
+
+def _dataset_factory_width(dataset_factory: fdl.Buildable | object) -> int:
+    dataset_factories = _shared_dataset_factories(dataset_factory)
+    if dataset_factories is None:
+        return getattr(dataset_factory, "width", 256)
+
+    widths = {getattr(factory, "width", 256) for factory in dataset_factories.values()}
+    if len(widths) != 1:
+        raise ValueError("All dataset factories must agree on width.")
+    return widths.pop()
+
+
+def _dataset_factory_return_mask(dataset_factory: fdl.Buildable | object) -> bool:
+    dataset_factories = _shared_dataset_factories(dataset_factory)
+    if dataset_factories is None:
+        return bool(dataset_factory.return_mask)
+
+    return_masks = {bool(factory.return_mask) for factory in dataset_factories.values()}
+    if len(return_masks) != 1:
+        raise ValueError("All dataset factories must agree on return_mask.")
+    return return_masks.pop()
+
+
 def validate_config(cfg: fdl.Config) -> None:
     """Validate cross-system constraints on a Fiddle configuration before training.
 
@@ -35,7 +76,7 @@ def validate_config(cfg: fdl.Config) -> None:
     # Contract 1: Network input_channels == len(dataset_factory.standard_names)
     # If the network does not expose input_channels, emit a warning because
     # this contract cannot be checked.
-    num_vars = len(dataset_factory.standard_names)
+    num_vars = len(_dataset_factory_standard_names(dataset_factory))
     try:
         net_input_channels = network.input_channels
     except AttributeError:
@@ -64,7 +105,7 @@ def validate_config(cfg: fdl.Config) -> None:
         )
         num_blocks = None
     if num_blocks is not None:
-        width = getattr(dataset_factory, "width", 256)
+        width = _dataset_factory_width(dataset_factory)
         divisor = 2**num_blocks
         if width % divisor != 0:
             raise ValueError(
@@ -81,8 +122,8 @@ def validate_config(cfg: fdl.Config) -> None:
             )
 
     # Contract 4: Dataset return_mask must match model masked_loss
-    if bool(dataset_factory.return_mask) != bool(pl_module.masked_loss):
+    if _dataset_factory_return_mask(dataset_factory) != bool(pl_module.masked_loss):
         raise ValueError(
-            f"Contract 4 violated: dataset_factory.return_mask ({dataset_factory.return_mask}) "
+            f"Contract 4 violated: dataset_factory.return_mask ({_dataset_factory_return_mask(dataset_factory)}) "
             f"must match pl_module.masked_loss ({pl_module.masked_loss})."
         )

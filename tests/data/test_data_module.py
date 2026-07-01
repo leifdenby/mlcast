@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 from torch.utils.data import DataLoader, Dataset
 
+from mlcast.config.multi_dataset import CombinedDatasetFactory
 from mlcast.data.source_data_datamodule import SourceDataDataModule
 from mlcast.data.splits import splitting_uses_fractions, splitting_uses_tuple_ranges, validate_splits
 from mlcast.sampling import UniformSampler
@@ -36,6 +37,35 @@ class MockDataset(Dataset):
 
     def __getitem__(self, idx: int) -> dict:
         return {"data": idx}
+
+
+class MockDatasetFactory:
+    def __init__(
+        self,
+        zarr_path: str,
+        standard_names: list[str],
+        return_mask: bool = True,
+        width: int = 256,
+    ) -> None:
+        self.zarr_path = zarr_path
+        self.standard_names = standard_names
+        self.return_mask = return_mask
+        self.width = width
+
+    def __call__(
+        self,
+        subset: dict | None = None,
+        augment: bool = False,
+        sampler: object | None = None,
+        **kwargs,
+    ) -> MockDataset:
+        return MockDataset(
+            zarr_path=self.zarr_path,
+            subset=subset,
+            augment=augment,
+            sampler=sampler,
+            **kwargs,
+        )
 
 
 def _mock_zarr(time_index: pd.DatetimeIndex) -> MagicMock:
@@ -152,6 +182,78 @@ def test_data_module_invalid_dataset() -> None:
 
     with pytest.raises((AttributeError, KeyError)):
         dm.setup()
+
+
+def test_combined_data_module_ratio_splits() -> None:
+    ita_time_index = _make_time_index(10, start="2020-01-01")
+    dwd_time_index = _make_time_index(20, start="2010-01-01")
+
+    dataset_factory = CombinedDatasetFactory(
+        {
+            "ita": MockDatasetFactory("ita.zarr", ["rainfall_flux"]),
+            "dwd": MockDatasetFactory("dwd.zarr", ["rainfall_amount"]),
+        }
+    )
+    dm = SourceDataDataModule(
+        dataset_factory=dataset_factory,
+        splits={
+            "ita": {"time": {"train": 0.5, "val": 0.3, "test": 0.2}},
+            "dwd": {"time": {"train": 0.25, "val": 0.25, "test": 0.5}},
+        },
+        batch_size=2,
+    )
+
+    def _open_zarr(zarr_path: str, storage_options: object | None = None) -> MagicMock:
+        return _mock_zarr({"ita.zarr": ita_time_index, "dwd.zarr": dwd_time_index}[zarr_path])
+
+    with patch("mlcast.data.splits.xr.open_zarr", side_effect=_open_zarr):
+        dm.setup(stage="fit")
+
+    assert dm.train_dataset is not None
+    assert dm.val_dataset is not None
+    assert dm.test_dataset is None
+    assert dm.train_dataset.datasets["ita"].augment is True
+    assert dm.val_dataset.datasets["ita"].augment is False
+    assert dm.train_dataset.datasets["ita"].subset["time"] == (str(ita_time_index[0]), str(ita_time_index[4]))
+    assert dm.val_dataset.datasets["ita"].subset["time"] == (str(ita_time_index[5]), str(ita_time_index[7]))
+    assert dm.train_dataset.datasets["dwd"].subset["time"] == (str(dwd_time_index[0]), str(dwd_time_index[4]))
+    assert dm.val_dataset.datasets["dwd"].subset["time"] == (str(dwd_time_index[5]), str(dwd_time_index[9]))
+
+
+def test_combined_data_module_datetime_splits() -> None:
+    dataset_factory = CombinedDatasetFactory(
+        {
+            "ita": MockDatasetFactory("ita.zarr", ["rainfall_flux"]),
+            "dwd": MockDatasetFactory("dwd.zarr", ["rainfall_amount"]),
+        }
+    )
+
+    dm = SourceDataDataModule(
+        dataset_factory=dataset_factory,
+        splits={
+            "ita": {
+                "time": {
+                    "train": ("2016-01-01", "2021-12-31"),
+                    "val": ("2022-01-01", "2023-12-31"),
+                    "test": None,
+                }
+            },
+            "dwd": {
+                "time": {
+                    "train": ("2010-01-01", "2015-12-31"),
+                    "val": ("2016-01-01", "2019-12-31"),
+                    "test": None,
+                }
+            },
+        },
+        batch_size=2,
+    )
+
+    dm.setup()
+
+    assert dm.train_dataset.datasets["ita"].subset == {"time": ("2016-01-01", "2021-12-31")}
+    assert dm.val_dataset.datasets["dwd"].subset == {"time": ("2016-01-01", "2019-12-31")}
+    assert dm.test_dataset is None
 
 
 def test_data_module_fraction_splits_without_test_do_not_create_test_dataset() -> None:

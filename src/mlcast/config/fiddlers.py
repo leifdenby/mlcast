@@ -22,6 +22,11 @@ from ..callbacks import LogSystemInfoCallback
 from ..data.source_data_datasets import SourceDataRandomSamplingDataset
 
 
+def _combined_dataset_factories(cfg: fdl.Config):
+    dataset_factories = getattr(cfg.data.dataset_factory, "dataset_factories", None)
+    return dataset_factories if dataset_factories is not None else None
+
+
 def set_variables(cfg: fdl.Config, standard_names: list[str]) -> None:
     """Fiddler to synchronize dataset variables with the network's input channels.
 
@@ -39,7 +44,12 @@ def set_variables(cfg: fdl.Config, standard_names: list[str]) -> None:
     standard_names : list of str
         The new list of standard names to load.
     """
-    cfg.data.dataset_factory.standard_names = standard_names
+    dataset_factories = _combined_dataset_factories(cfg)
+    if dataset_factories is None:
+        cfg.data.dataset_factory.standard_names = standard_names
+    else:
+        for dataset_factory in dataset_factories.values():
+            dataset_factory.standard_names = standard_names
     network_cls = cfg.pl_module.network.__fn_or_cls__
     sig = inspect.signature(network_cls.__init__)
     if "input_channels" in sig.parameters:
@@ -62,7 +72,12 @@ def toggle_masking(cfg: fdl.Config, enabled: bool) -> None:
     enabled : bool
         Whether to enable masking or not.
     """
-    cfg.data.dataset_factory.return_mask = enabled
+    dataset_factories = _combined_dataset_factories(cfg)
+    if dataset_factories is None:
+        cfg.data.dataset_factory.return_mask = enabled
+    else:
+        for dataset_factory in dataset_factories.values():
+            dataset_factory.return_mask = enabled
     cfg.pl_module.masked_loss = enabled
 
 
@@ -74,16 +89,29 @@ def use_random_sampler(cfg: fdl.Config) -> None:
     cfg : fdl.Config
         The Fiddle configuration to mutate.
     """
-    # Keep the existing parameters but change the underlying class
-    cfg.data.dataset_factory = fdl.Partial(
-        SourceDataRandomSamplingDataset,
-        zarr_path=cfg.data.dataset_factory.zarr_path,
-        standard_names=cfg.data.dataset_factory.standard_names,
-        input_steps=cfg.data.dataset_factory.input_steps,
-        forecast_steps=cfg.data.dataset_factory.forecast_steps,
-        return_mask=cfg.data.dataset_factory.return_mask,
-        storage_options=getattr(cfg.data.dataset_factory, "storage_options", None),
-    )
+    dataset_factories = _combined_dataset_factories(cfg)
+    if dataset_factories is None:
+        # Keep the existing parameters but change the underlying class
+        cfg.data.dataset_factory = fdl.Partial(
+            SourceDataRandomSamplingDataset,
+            zarr_path=cfg.data.dataset_factory.zarr_path,
+            standard_names=cfg.data.dataset_factory.standard_names,
+            input_steps=cfg.data.dataset_factory.input_steps,
+            forecast_steps=cfg.data.dataset_factory.forecast_steps,
+            return_mask=cfg.data.dataset_factory.return_mask,
+            storage_options=getattr(cfg.data.dataset_factory, "storage_options", None),
+        )
+    else:
+        for dataset_name, dataset_factory in dataset_factories.items():
+            dataset_factories[dataset_name] = fdl.Partial(
+                SourceDataRandomSamplingDataset,
+                zarr_path=dataset_factory.zarr_path,
+                standard_names=dataset_factory.standard_names,
+                input_steps=dataset_factory.input_steps,
+                forecast_steps=dataset_factory.forecast_steps,
+                return_mask=dataset_factory.return_mask,
+                storage_options=getattr(dataset_factory, "storage_options", None),
+            )
 
 
 def use_ratio_splits(cfg: fdl.Config, train: float, val: float) -> None:

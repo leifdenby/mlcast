@@ -456,6 +456,17 @@ class SourceDataIndexedDataset(SourceDataDatasetBase):
         # event loop, avoiding asyncio "Future attached to a different loop" errors.
         self._ds = None
 
+    @property
+    def num_vars(self) -> int:
+        """Number of variables (channels) in the dataset.
+
+        Returns
+        -------
+        num_variables : int
+            Number of variables.
+        """
+        return len(self.standard_names)
+
     def __len__(self) -> int:
         """Get the number of samples in the dataset.
 
