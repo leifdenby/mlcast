@@ -13,6 +13,7 @@ def test_dmi_500m_10min_convgru_experiment_config():
     assert cfg.data.dataset_factory.forecast_steps == 18
     assert cfg.data.dataset_factory.standard_names == ["equivalent_reflectivity_factor"]
     assert cfg.pl_module.network.input_channels == 1
+    assert cfg.data.batch_size == 32
 
     assert cfg.data.splits == {
         "time": {

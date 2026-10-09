@@ -30,6 +30,8 @@ def dmi_500m_10min_convgru_experiment() -> fdl.Config[Experiment]:
     - `standard_names` to `["equivalent_reflectivity_factor"]`, via the
       `set_variables` fiddler so the network's `input_channels` stays in
       sync;
+    - `batch_size` to 32 (default 16 left the A40 on ohm.dmi.dk at ~43%
+      memory utilization);
     - `data.splits` to fixed calendar-year ranges (2016-2023 train / 2024
       val / 2025 test) instead of the default ratio split, so the 2025
       test season can never be contaminated by a ratio boundary landing
@@ -68,6 +70,10 @@ def dmi_500m_10min_convgru_experiment() -> fdl.Config[Experiment]:
     cfg.data.dataset_factory.input_steps = 6
     cfg.data.dataset_factory.forecast_steps = 18
     set_variables(cfg, standard_names=["equivalent_reflectivity_factor"])
+
+    # Default batch_size=16 left the A40 on ohm.dmi.dk at ~43% memory
+    # utilization; double it rather than leaving headroom unused.
+    cfg.data.batch_size = 32
 
     # Tuple-range mode (see mlcast.data.splits): explicit inclusive date
     # ranges, not mlcast's default fraction-of-timeline split.
