@@ -6,6 +6,7 @@ and runtime orchestration logic for `mlcast`.
 
 from .base import Experiment, training_experiment
 from .consistency_checks import validate_config
+from .dmi import dmi_500m_10min_convgru_experiment
 from .fiddlers import (
     set_variables,
     toggle_masking,
@@ -20,6 +21,7 @@ from .orchestrator import train_from_config
 __all__ = [
     "Experiment",
     "training_experiment",
+    "dmi_500m_10min_convgru_experiment",
     "validate_config",
     "train_from_config",
     "load_yaml_config",
