@@ -80,7 +80,6 @@ def dmi_500m_10min_convgru_experiment() -> fdl.Config[Experiment]:
     }
 
     cfg.trainer.logger.name = "dmi-500m-10min-convgru"
-    use_mlflow_logger(cfg)
-    cfg.trainer.logger.tracking_uri = MLFLOW_TRACKING_URI
+    use_mlflow_logger(cfg, tracking_uri=MLFLOW_TRACKING_URI)
 
     return cfg
