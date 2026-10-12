@@ -122,10 +122,7 @@ class ReflectivityScaling:
     def normalize_reflectivity(self, reflectivity: np.ndarray) -> np.ndarray:
         """Normalize reflectivity from [dbz_floor, dbz_ceiling] dBZ to [norm_min, norm_max].
 
-        Values outside ``[dbz_floor, dbz_ceiling]`` are clipped first, so the
-        output stays within ``[norm_min, norm_max]``. Without this, sentinels
-        below the floor (e.g. DMI's -32 dBZ "no echo") landed outside the
-        model's reachable output range. NaN inputs propagate untouched.
+        Input is clipped to ``[dbz_floor, dbz_ceiling]`` first. NaN propagates.
         """
         dbz_span = self.dbz_ceiling - self.dbz_floor
         norm_span = self.norm_max - self.norm_min
