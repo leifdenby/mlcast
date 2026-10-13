@@ -42,6 +42,7 @@ dependencies = [
   "ipykernel>=6.29.5",
   "jaxtyping>=0.2",
   "loguru>=0.7.3",
+  "mlcast-verification-tools",
   "mlflow[mlflow]>=3.11.1",
   "numpy>=2.2.6",
   "nvidia-ml-py[mlflow]>=13.595.45",
@@ -178,3 +179,4 @@ torchvision = [
   { index = "pytorch-cu128", extra = "gpu-cu128" },
   { index = "pytorch-cu130", extra = "gpu-cu130" },
 ]
+mlcast-verification-tools = { git = "https://github.com/leifdenby/mlcast-verification-tools" }
