@@ -359,12 +359,51 @@ scheme by subclassing `CandidateSelector`, decorating it with
 `@register_selector("name")`, and selecting it from a config via
 `get_selector("name", ...)`.
 
+## Extending the mlcast CLI
+
+Other installed packages can add their own `mlcast <command>` subcommands
+through the `mlcast.commands` [entry point](https://packaging.python.org/en/latest/specifications/entry-points/)
+group. Declare one in the package's `pyproject.toml`:
+
+```toml
+[project.entry-points."mlcast.commands"]
+verify = "mlcast_verification.cli:main"
+```
+
+and, once the package is installed alongside `mlcast`, `mlcast verify ...`
+calls `mlcast_verification.cli.main`. The contract:
+
+- The **entry point name** is the subcommand name (`mlcast verify`).
+- The **object** is a callable `main(argv: list[str]) -> int | None`. It
+  receives every argument after the subcommand name and parses them itself, so
+  `mlcast verify --help` is handled by the plugin. A non-zero `int` return
+  value becomes the process exit code; `None` or `0` means success.
+- The **first line of its docstring** is the one-line help shown by
+  `mlcast --help`. The plugin is only imported to read it when that help may be
+  printed; a plugin that fails to import is listed as
+  `(failed to load: <error>)` instead of breaking `mlcast --help`.
+- **Built-in subcommands always win**: a plugin using the name of a built-in
+  (`train`, `build-sampling-index`, ...) is ignored with a warning.
+
+```py
+import argparse
+
+
+def main(argv: list[str]) -> int | None:
+    """Verify forecasts against observations."""
+    parser = argparse.ArgumentParser(prog="mlcast verify")
+    parser.add_argument("forecast")
+    args = parser.parse_args(argv)
+    ...
+    return 0
+```
+
 ## Project Structure
 
 ```
 mlcast/
 ├── src/mlcast/
-│   ├── __main__.py                      # CLI entry point (train / build-sampling-index / validate-sampling-index)
+│   ├── __main__.py                      # CLI entry point (train / build-sampling-index / validate-sampling-index / plugins)
 │   ├── nowcasting_module.py             # Generic Lightning module for nowcasting
 │   ├── losses.py                        # CRPS, AFCRPS, MSE loss functions
 │   ├── callbacks.py                     # Training callbacks

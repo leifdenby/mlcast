@@ -20,6 +20,10 @@ Usage examples::
 
     # Switch to a different base config function entirely:
     python -m mlcast train --config=config:another_experiment_function
+
+Other installed packages can add their own ``mlcast <command>`` subcommands
+through the ``mlcast.commands`` entry point group; see ``cli()`` for the
+contract.
 """
 
 from __future__ import annotations
@@ -27,8 +31,12 @@ from __future__ import annotations
 import argparse
 import ast
 import importlib.util
+import inspect
 import sys
+from importlib.metadata import EntryPoint, entry_points
 from typing import TYPE_CHECKING
+
+from loguru import logger
 
 if TYPE_CHECKING:
     import fiddle as fdl
@@ -394,12 +402,89 @@ def _run_sampling_command(name: str, remaining: list[str]) -> None:
     sys.exit(module.run(sub.parse_args(remaining)))
 
 
+PLUGIN_ENTRY_POINT_GROUP = "mlcast.commands"
+
+
+def _discover_plugin_commands(reserved: set[str]) -> dict[str, EntryPoint]:
+    """Find the ``mlcast.commands`` entry points of the installed packages.
+
+    Entry points whose name clashes with a built-in subcommand (or with an
+    earlier plugin of the same name) are skipped with a warning.
+
+    Parameters
+    ----------
+    reserved : set of str
+        Names already taken by the built-in subcommands.
+
+    Returns
+    -------
+    dict of str to EntryPoint
+        The plugin entry points, keyed by subcommand name. Nothing is loaded.
+    """
+    plugins: dict[str, EntryPoint] = {}
+    for ep in entry_points(group=PLUGIN_ENTRY_POINT_GROUP):
+        if ep.name in reserved or ep.name in plugins:
+            logger.warning(f"Ignoring plugin command {ep.name!r} ({ep.value}): the name is already taken.")
+            continue
+        plugins[ep.name] = ep
+    return plugins
+
+
+def _plugin_help(ep: EntryPoint) -> str:
+    """Return the one-line ``mlcast -h`` help for a plugin command.
+
+    This is the first line of the plugin callable's docstring. Loading the
+    entry point imports the plugin, so this is only called when the top-level
+    help (or a usage error) may be printed; a plugin that fails to import is
+    reported in its help line instead of breaking ``mlcast -h``.
+    """
+    try:
+        doc = inspect.getdoc(ep.load()) or ""
+    except Exception as err:
+        doc = f"(failed to load: {err})"
+    # argparse %-formats help strings, so escape any literal "%".
+    return doc.strip().partition("\n")[0].replace("%", "%%")
+
+
+def _run_plugin_command(ep: EntryPoint, remaining: list[str]) -> None:
+    """Load a plugin command, hand it the remaining argv and exit with its return code."""
+    try:
+        main = ep.load()
+    except Exception as err:
+        sys.exit(f"mlcast {ep.name}: failed to load plugin command {ep.value!r}: {err}")
+    code = main(remaining)
+    if isinstance(code, int) and code != 0:
+        sys.exit(code)
+
+
 def cli() -> None:
     """Console script entry point for the ``mlcast`` command.
 
     This parses standard CLI arguments via `argparse`, injects Fiddle default
     overrides if no base configuration is provided, formats the `--help`
     output, and safely passes execution over to `absl.app.run`.
+
+    Plugin commands
+    ---------------
+    Other installed packages can add ``mlcast <name>`` subcommands by
+    declaring an entry point in the ``mlcast.commands`` group, e.g. in their
+    ``pyproject.toml``::
+
+        [project.entry-points."mlcast.commands"]
+        verify = "mlcast_verification.cli:main"
+
+    - The entry point name is the subcommand name (``mlcast verify``).
+    - The object is a callable ``main(argv: list[str]) -> int | None``. It
+      receives every argument after the subcommand name and parses them itself,
+      so ``mlcast verify --help`` is handled by the plugin. A non-zero ``int``
+      return value becomes the process exit code; ``None`` or ``0`` means
+      success.
+    - The first line of the callable's docstring is the one-line help shown by
+      ``mlcast --help``. The plugin is only imported to read it when that help
+      may be printed, and a plugin that fails to import is listed as
+      ``(failed to load: <error>)`` rather than breaking ``mlcast --help``.
+    - Built-in subcommands always win: a plugin using a built-in name is
+      ignored with a warning.
     """
     parser = argparse.ArgumentParser(
         prog="mlcast",
@@ -435,7 +520,16 @@ def cli() -> None:
         help="Validate a sampling index against the canonical contract.",
     )
 
-    args, remaining = parser.parse_known_args()
+    # Plugin subcommands from other installed packages. Their help line needs
+    # the plugin imported, so it is only filled in when the top-level help or a
+    # usage error may be printed, i.e. when no known subcommand is given.
+    plugins = _discover_plugin_commands(reserved=set(subparsers.choices))
+    argv = sys.argv[1:]
+    need_help = not argv or argv[0] not in (set(subparsers.choices) | set(plugins))
+    for name, ep in plugins.items():
+        subparsers.add_parser(name, add_help=False, help=_plugin_help(ep) if need_help else None)
+
+    args, remaining = parser.parse_known_args(argv)
 
     if args.command == "train":
         _define_train_flags()
@@ -467,6 +561,8 @@ def cli() -> None:
         app.run(train_main, argv=[sys.argv[0]] + remaining)
     elif args.command in ("build-sampling-index", "validate-sampling-index"):
         _run_sampling_command(args.command, remaining)
+    else:
+        _run_plugin_command(plugins[args.command], remaining)
 
 
 if __name__ == "__main__":

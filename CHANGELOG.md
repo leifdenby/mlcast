@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   init. `SourceDataDataModule` takes per-split `train_selector` and `eval_selector` arguments; the default
   experiment uses importance sampling on train and uniform 10% sampling on val/test.
   [#17](https://github.com/mlcast-community/mlcast/pull/17) @franchg @leifdenby @noralinn
+- Other installed packages can add `mlcast <command>` subcommands through the `mlcast.commands` entry point
+  group; the entry point names a `main(argv: list[str]) -> int | None` callable that parses its own arguments.
+  See "Extending the mlcast CLI" in the README. @leifdenby
 
 ### Changed
 
