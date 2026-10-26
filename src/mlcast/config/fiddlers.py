@@ -16,10 +16,12 @@ import os
 
 import fiddle as fdl
 from loguru import logger
+from pytorch_lightning.callbacks import ProgressBar, TQDMProgressBar
 from pytorch_lightning.loggers import MLFlowLogger
 
-from ..callbacks import LogConsoleToMLflowCallback, LogSystemInfoCallback
+from ..callbacks import LogConsoleToMLflowCallback, LogSystemInfoCallback, LogTrainingProgressCallback
 from ..data.source_data_datasets import SourceDataRandomSamplingDataset
+from ..loggers import ResilientMLFlowLogger
 
 
 def set_variables(cfg: fdl.Config, standard_names: list[str]) -> None:
@@ -118,15 +120,21 @@ def use_mlflow_logger(
     cfg: fdl.Config,
     tracking_uri: str | None = None,
     console_upload_interval_seconds: float = 60.0,
+    progress_log_interval_seconds: float = 60.0,
+    upload_checkpoints: bool = False,
 ) -> None:
     """Fiddler to switch the trainer logger to MLflow.
 
-    Replaces the default TensorBoardLogger with an MLFlowLogger, inheriting
+    Replaces the default TensorBoardLogger with an MLFlowLogger
+    (`ResilientMLFlowLogger`), inheriting
     the experiment name from the existing logger config. The run name is
     left unset, deferring to the ``MLFLOW_RUN_NAME`` environment variable
     (or MLflow's default). Also adds callbacks that log system info and
-    metrics, and that upload the console output to the run as
-    ``logs/console.log`` while training.
+    metrics, that upload the console output to the run as
+    ``logs/console.log`` while training, and that log a progress line at a
+    fixed interval so progress shows in that log. Unless a progress bar is
+    already configured, the progress bar is set to TQDM, because the console
+    capture hides Lightning's default Rich bar.
 
     Parameters
     ----------
@@ -140,6 +148,16 @@ def use_mlflow_logger(
     console_upload_interval_seconds : float, optional
         How often the captured console log is re-uploaded to MLflow while
         training runs. Default 60.
+    progress_log_interval_seconds : float, optional
+        Minimum seconds between the progress lines logged during training.
+        Default 60.
+    upload_checkpoints : bool, optional
+        Upload every checkpoint to the run as it is saved, so the run can be
+        resumed from another machine with ``--config mlflow:<run>``. Off by
+        default: checkpoints are large (~770 MB for the 5-block ConvGRU) and
+        some servers refuse them (mlflow.dmidev.org does). A failed upload
+        is logged as a warning and doesn't stop training, but each attempt
+        can block it for minutes of retries.
     """
     if tracking_uri is None and not os.environ.get("MLFLOW_TRACKING_URI"):
         logger.warning(
@@ -147,10 +165,92 @@ def use_mlflow_logger(
             "Set MLFLOW_TRACKING_URI to point to a remote tracking server, "
             "e.g. export MLFLOW_TRACKING_URI=http://localhost:5000"
         )
-    cfg.trainer.logger = fdl.Config(MLFlowLogger, experiment_name=cfg.trainer.logger.name)
+    # log_model="all" uploads every checkpoint to the run as it is saved.
+    cfg.trainer.logger = fdl.Config(
+        ResilientMLFlowLogger,
+        experiment_name=cfg.trainer.logger.name,
+        log_model="all" if upload_checkpoints else False,
+    )
     if tracking_uri is not None:
         cfg.trainer.logger.tracking_uri = tracking_uri
     cfg.trainer.callbacks.append(fdl.Config(LogSystemInfoCallback))
     cfg.trainer.callbacks.append(
         fdl.Config(LogConsoleToMLflowCallback, upload_interval_seconds=console_upload_interval_seconds)
     )
+    cfg.trainer.callbacks.append(
+        fdl.Config(LogTrainingProgressCallback, log_interval_seconds=progress_log_interval_seconds)
+    )
+    # The console capture points fds 1/2 at pipes, so Lightning's default
+    # RichProgressBar sees no terminal and hides its live display. TQDM redraws
+    # with "\r" regardless, which passes through to the terminal (and which the
+    # capture collapses in the log file). Lightning raises on two progress
+    # bars, so leave an explicitly configured one alone. Callback entries are
+    # `fdl.Config` nodes here, hence the check on `__fn_or_cls__`.
+    has_progress_bar = any(
+        isinstance(getattr(cb, "__fn_or_cls__", None), type) and issubclass(cb.__fn_or_cls__, ProgressBar)
+        for cb in cfg.trainer.callbacks
+    )
+    if not has_progress_bar:
+        cfg.trainer.callbacks.append(fdl.Config(TQDMProgressBar))
+
+
+def resume_training(
+    cfg: fdl.Config,
+    ckpt_path: str,
+    mlflow_run_id: str | None = None,
+    inplace: bool = False,
+    run_name: str | None = None,
+) -> None:
+    """Fiddler to resume training from a checkpoint.
+
+    Sets ``cfg.ckpt_path`` so that ``Trainer.fit`` restores the full
+    training state (weights, optimizer, LR scheduler, step counter and the
+    ``max_time`` timer, so ``max_time`` is the total budget, not the extra
+    time). ``mlcast train --config mlflow:<run>`` applies this fiddler for you.
+
+    With ``mlflow_run_id`` (the run being continued), the continuation is
+    logged as a **new MLflow run linked to it**: tagged
+    ``mlflow.parentRunId`` (so the UI nests it under the original),
+    ``mlcast.resumed_from_run`` and ``mlcast.resumed_from_checkpoint``. A new
+    run can log its own config and status, which MLflow wouldn't allow in
+    the original run (params are immutable). Step numbers continue from the
+    checkpoint, so the runs' curves line up. With ``inplace=True`` the
+    original run is continued instead. Checkpoint upload stays as the
+    config has it (``set:trainer.logger.log_model=...`` to change it), and
+    the logger is switched to `ResilientMLFlowLogger`, so configs saved by
+    older runs with plain ``MLFlowLogger`` can't crash on an upload either.
+
+    Parameters
+    ----------
+    cfg : fdl.Config
+        The Fiddle configuration to mutate.
+    ckpt_path : str
+        Local path of the checkpoint to resume from.
+    mlflow_run_id : str, optional
+        MLflow run being continued. Requires the trainer logger to be an
+        ``MLFlowLogger``.
+    inplace : bool, optional
+        Log into ``mlflow_run_id`` itself instead of a new linked run.
+    run_name : str, optional
+        Name for the new run (ignored with ``inplace``).
+    """
+    cfg.ckpt_path = ckpt_path
+    if mlflow_run_id is None:
+        return
+    logger_cls = getattr(cfg.trainer.logger, "__fn_or_cls__", None)
+    if not (isinstance(logger_cls, type) and issubclass(logger_cls, MLFlowLogger)):
+        raise ValueError("resume_training(mlflow_run_id=...) needs an MLFlowLogger; apply use_mlflow_logger first")
+    fdl.update_callable(cfg.trainer.logger, ResilientMLFlowLogger)
+    if inplace:
+        cfg.trainer.logger.run_id = mlflow_run_id
+        return
+    # A config saved by an earlier (in-place or linked) resume may carry that
+    # run's id, name and links; a new run must not inherit them.
+    cfg.trainer.logger.run_id = None
+    cfg.trainer.logger.run_name = run_name
+    cfg.trainer.logger.tags = {
+        **(cfg.trainer.logger.tags or {}),
+        "mlflow.parentRunId": mlflow_run_id,
+        "mlcast.resumed_from_run": mlflow_run_id,
+        "mlcast.resumed_from_checkpoint": os.path.basename(ckpt_path),
+    }

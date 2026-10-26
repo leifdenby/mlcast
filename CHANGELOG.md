@@ -23,8 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (pending upstream) With `fiddler:use_mlflow_logger`, the training process's console output (logging, `print`s, warnings and the
   traceback of a crash) is uploaded to the MLflow run as `logs/console.log`, refreshed every 60 s while training
   runs (`console_upload_interval_seconds` to change it), so the log can be followed in the MLflow UI.
+  The same fiddler logs a one-line progress summary (step, epoch/batch, `train_loss_step`, steps/s, samples/s,
+  elapsed and remaining time) every 60 s (`progress_log_interval_seconds`), so progress shows in that log, and
+  switches the progress bar to TQDM, because Lightning's default Rich bar is hidden once the console is captured.
   [#32](https://github.com/mlcast-community/mlcast/pull/32) (draft)
-  Commits: [25b35f2](https://github.com/dmidk/mlcast/commit/25b35f269834eb1e7a2d884fe9d36a350e6fa659) @leifdenby
+  Commits: [25b35f2](https://github.com/dmidk/mlcast/commit/25b35f269834eb1e7a2d884fe9d36a350e6fa659)
+  [737d24e](https://github.com/dmidk/mlcast/commit/737d24e635239247e12d654a0a62d8a16a6dee0a) @leifdenby
 - (DMI only) `dmi_500m_10min_convgru_experiment` config (`src/mlcast/config/dmi.py`): ConvGRU training on DMI's
   500 m / 10 min radar composite with its precomputed sampling index, 6 input / 18 forecast steps (1 h in → 3 h
   lead), fixed calendar-year splits (2016–2023 train / 2024 val / 2025 test), and logging to DMI's MLflow server.
@@ -33,6 +37,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (DMI only) The DMI config saves a checkpoint every 3 h of training (Lightning's `ModelCheckpoint`
   `train_time_interval`), kept alongside the best-loss checkpoints as `every-3h-epoch=…-step=….ckpt`.
   [dmidk#3](https://github.com/dmidk/mlcast/pull/3) @leifdenby
+- (DMI only) The DMI config's training split starts 2019-07-13 (was 2016-01-01) because of missing earlier data,
+  and its sampling index moved to `/dmidata/projects/cloudphysics/mlcast/`.
+  [214dbd5](https://github.com/dmidk/mlcast/commit/214dbd5b8ee075be2f21d26ffb61dc8cb30ee286) @arjj8
+  [90b7899](https://github.com/dmidk/mlcast/commit/90b7899faa8276aaea89edbee6926f162f44caf3) @leifdenby
+- Resuming training. `Experiment` has a `ckpt_path` passed to `Trainer.fit`, set by the new `resume_training`
+  fiddler, which restores the full training state (so `max_time` is the total budget). `mlcast train --config
+  mlflow:<run id, runs:/<id> or run URL>` continues an MLflow run: it downloads the run's config and latest
+  checkpoint and logs the continuation as a new run named `<original>-from-step<N>`, linked to the original
+  (`mlflow.parentRunId`, so the UI nests it, plus `mlcast.resumed_from_run` and
+  `mlcast.resumed_from_checkpoint` tags), so the new run can log its own params and status; step numbers carry on.
+  `--config mlflow-inplace:<run>` keeps logging into the original run instead. `use_mlflow_logger` now uploads
+  every checkpoint to the run
+  (`log_model="all"`); for older runs the local `<experiment_id>/<run_id>/checkpoints` is used. The config is
+  now uploaded as `config/config.yaml`, as the log message already said, instead of a random temp-file name.
+  @leifdenby
 
 ### Changed
 
@@ -61,6 +80,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Checkpoint upload to MLflow could crash training: mlflow.dmidev.org cuts the connection on ~770 MB uploads,
+  and Lightning's `MLFlowLogger` lets the error stop the run (a continuation died at its first validation). Upload
+  is now opt-in (`use_mlflow_logger(upload_checkpoints=True)`, default off), and the new `ResilientMLFlowLogger`
+  (used by `use_mlflow_logger` and `resume_training`, also for configs saved with plain `MLFlowLogger`) turns a
+  failed upload into a warning and doesn't retry that checkpoint. @leifdenby
+- A saved `config.yaml` with `(start, end)` date-range splits (e.g. the DMI config) can be built again: YAML has no
+  tuples, so the ranges came back as lists and `validate_splits` rejected them, which broke `--config config.yaml`
+  and `--config mlflow:<run>`. `SourceDataDataModule` now turns two-element lists back into tuples
+  (`normalize_splits`). @leifdenby
+- `mlcast train --config mlflow:<run>` failed with a 404 against tracking servers older than MLflow 3 (e.g.
+  mlflow.dmidev.org): `MlflowClient.list_artifacts` in the MLflow 3 client also queries the logged-models endpoint.
+  Artifacts are now listed and downloaded through the run's artifact repository instead. @leifdenby
 - (pending upstream) A failed image upload in `NowcastLightningModule` (e.g. the MLflow proxy rejecting a large PNG with a 413) is
   now logged as a warning instead of killing the training run.
   [#23](https://github.com/mlcast-community/mlcast/pull/23) (open)

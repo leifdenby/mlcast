@@ -121,6 +121,8 @@ are controlled via `--config` flags:
 | `fiddler:` | Apply a semantic mutator (multi-param change) | `--config fiddler:use_random_sampler` |
 | `config:` | Switch to a different `@auto_config` function | `--config=config:my_experiment` |
 | `path/to/config.yaml` | Load a previously saved config | `--config saved.yaml` |
+| `mlflow:` | Continue an MLflow run from its config and latest checkpoint, as a new linked run | `--config mlflow:<run id or URL>` |
+| `mlflow-inplace:` | Same, but keep logging into the original run | `--config mlflow-inplace:<run id or URL>` |
 
 Multiple `--config` flags are applied in order and can be combined freely.
 
@@ -137,10 +139,32 @@ mlcast train \
     --config fiddler:use_random_sampler \
     --config fiddler:use_mlflow_logger
 
-# Resume from a saved config with an epoch override
+# Train again with a saved config and an epoch override (starts from scratch)
 mlcast train \
     --config logs/mlcast/version_0/config.yaml \
     --config set:trainer.max_epochs=50
+
+# Continue training from a checkpoint (weights, optimizer, LR scheduler, step counter
+# and max_time timer are restored, so max_time is the total budget)
+mlcast train \
+    --config logs/mlcast/version_0/config.yaml \
+    --config fiddler:resume_training(ckpt_path='path/to/last.ckpt') \
+    --config set:trainer.max_time='"03:00:00:00"'
+
+# Continue an MLflow run: downloads its config and latest checkpoint and logs the
+# continuation as a new run, named <original>-from-step<N> and linked to the original
+# (nested under it in the UI via mlflow.parentRunId, plus mlcast.resumed_from_run and
+# mlcast.resumed_from_checkpoint tags). Step numbers carry on, so the curves line up.
+# Accepts a run id, runs:/<id> or the run's URL in the MLflow UI. Checkpoints are taken
+# from the run's artifacts if it uploaded them (use_mlflow_logger(upload_checkpoints=True),
+# then this works from any machine), otherwise from the local
+# <experiment_id>/<run_id>/checkpoints, i.e. on the machine that trained the run.
+mlcast train \
+    --config mlflow:https://mlflow.example.org/#/experiments/114/runs/<run_id> \
+    --config set:trainer.max_time='"03:00:00:00"'
+
+# Same, but keep logging into the original run (its params can't be changed then)
+mlcast train --config mlflow-inplace:<run_id> --config set:trainer.max_time='"03:00:00:00"'
 
 # Inspect the fully resolved config without starting training
 mlcast train --config fiddler:use_random_sampler --print_config_and_exit
@@ -270,7 +294,8 @@ experiment.run()              # trainer.fit() + trainer.test()
 
 | Fiddler | Arguments | What it does |
 |---------|-----------|--------------|
-| `use_mlflow_logger` | *(none)* | Replaces the default `TensorBoardLogger` with `MLFlowLogger` and appends `LogSystemInfoCallback`; respects the `MLFLOW_TRACKING_URI` environment variable |
+| `use_mlflow_logger` | `upload_checkpoints=False` (and others) | Replaces the default `TensorBoardLogger` with `MLFlowLogger` and appends `LogSystemInfoCallback`; respects the `MLFLOW_TRACKING_URI` environment variable. With `upload_checkpoints=True` every checkpoint is uploaded to the run; a refused upload is a warning, not a crash |
+| `resume_training` | `ckpt_path`, `mlflow_run_id=None`, `inplace=False`, `run_name=None` | Continues training from a checkpoint (full training state); with `mlflow_run_id`, logs to a new MLflow run linked to that one (or into it with `inplace=True`). Applied for you by `--config mlflow:<run>` |
 | `set_variables` | `standard_names` | Sets the list of input variables on the dataset and updates `network.input_channels` to match |
 | `toggle_masking` | `enabled` | Toggles masked-loss mode by setting both `dataset_factory.return_mask` and `pl_module.masked_loss` to the same value |
 | `use_anon_s3_dataset` | `zarr_path`, `endpoint_url` | Points the dataset at an anonymous S3 object store; sets `zarr_path` and the required `storage_options` together |
