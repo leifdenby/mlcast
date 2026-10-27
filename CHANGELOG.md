@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`log_model="all"`); for older runs the local `<experiment_id>/<run_id>/checkpoints` is used. The config is
   now uploaded as `config/config.yaml`, as the log message already said, instead of a random temp-file name.
   @leifdenby
+- (DMI only) `examples/scripts/val_diagnostics.py` checks whether the DMI config's `val_loss` can tell
+  checkpoints apart: what the first `limit_val_batches` windows of the (unshuffled, time-sorted) val set cover,
+  the spread of `val_loss` over repeated scorings of one checkpoint, and checkpoint losses on a fixed,
+  time-strided val subset with fixed windows and seed. @leifdenby
 
 ### Changed
 
