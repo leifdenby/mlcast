@@ -6,7 +6,7 @@ window start offset drawn at random on every pass and fresh ensemble noise.
 This script measures what that val subset covers and how noisy its loss is,
 and scores checkpoints on a fixed, time-spread val subset instead.
 
-Three checks, selected with ``--check``:
+Four checks, selected with ``--check``:
 
 - ``coverage`` (CPU): size of the val set, the dates covered by the first
   ``--head-sizes`` windows (what ``limit_val_batches`` actually scores), and
@@ -22,6 +22,11 @@ Three checks, selected with ``--check``:
   many val windows chosen by the train selector (``trainlike``: the
   rain-weighted mix the model trains on). Persistence and always-dry are
   scored the same way as reference rows (``--no-references`` to skip them).
+- ``bins`` (GPU): score each ``--checkpoint`` (and the references) per
+  intensity bin of the index ``mean``, ``--bin-edges`` in dBZ, with up to
+  ``--per-bin`` windows in each bin spread across the val period. Writes a
+  CSV (``--out``) with the checkpoint's global step, for loss-against-step
+  curves per bin.
 
 Run from the repository root on a machine with the DMI data, e.g.::
 
@@ -458,10 +463,134 @@ def check_checkpoints(args: argparse.Namespace) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+# Default edges (dBZ) on the index's per-window `mean`. DMI stores no echo as -32 dBZ,
+# so the first bin (<= -32) holds windows with no echo at all; the edges are dense
+# below 0 dBZ, the range the default importance selector never trains on.
+DEFAULT_BIN_EDGES = [-32.0, -28.0, -24.0, -20.0, -15.0, -10.0, -5.0, 0.0, 5.0, 10.0, 20.0]
+
+
+def build_intensity_bins(
+    values: np.ndarray, edges: list[float], per_bin: int
+) -> list[tuple[str, float, float, np.ndarray]]:
+    """Pick up to ``per_bin`` positions in each intensity bin, spread evenly within it.
+
+    Bins are ``(-inf, e0]``, ``(e0, e1]``, ..., ``(e_last, inf)``. Within a bin
+    the positions are strided over that bin's members, so with candidates
+    sorted by time each bin is spread over the whole period.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Per-window statistic (the index ``mean``), in candidate order.
+    edges : list of float
+        Increasing bin edges.
+    per_bin : int
+        Maximum number of windows per bin.
+
+    Returns
+    -------
+    list of (str, float, float, numpy.ndarray)
+        ``(label, lower, upper, positions)`` per non-empty bin, lowest first.
+    """
+    bounds = [-np.inf, *edges, np.inf]
+    bins = []
+    for lo, hi in zip(bounds[:-1], bounds[1:], strict=False):
+        members = np.flatnonzero((values > lo) & (values <= hi))
+        if len(members) == 0:
+            continue
+        chosen = members[strided_positions(len(members), per_bin)]
+        label = f"<= {hi:g}" if np.isinf(lo) else (f"> {lo:g}" if np.isinf(hi) else f"({lo:g}, {hi:g}]")
+        bins.append((label, float(lo), float(hi), chosen))
+    return bins
+
+
+def read_checkpoint_run_id(ckpt_path: str) -> str:
+    """Return the MLflow run id in a ``<experiment>/<run_id>/checkpoints/<file>`` path, or ``""``."""
+    parts = ckpt_path.replace("\\", "/").split("/")
+    return parts[-3] if len(parts) >= 3 and parts[-2] == "checkpoints" else ""
+
+
+def load_checkpoint_weights(module, ckpt_path: str) -> int:
+    """Load a Lightning checkpoint's weights into ``module`` and return its global step.
+
+    Parameters
+    ----------
+    module : NowcastLightningModule
+        Freshly built module.
+    ckpt_path : str
+        Lightning checkpoint.
+
+    Returns
+    -------
+    int
+        The checkpoint's ``global_step``.
+    """
+    ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+    module.load_state_dict(ckpt["state_dict"])
+    return int(ckpt["global_step"])
+
+
+def check_bins(args: argparse.Namespace) -> pd.DataFrame:
+    """Score each checkpoint, and the reference forecasts, per intensity bin of the index ``mean``.
+
+    Each bin holds up to ``--per-bin`` val windows strided across the val
+    period, so wet bins are as well sampled as dry ones. The result is written
+    to ``--out`` as CSV, one row per forecast and bin, for
+    ``plot_bin_curves.py`` in the project notes.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns ``forecast``, ``run_id``, ``global_step``, ``bin``, ``lower``,
+        ``upper``, ``n_windows`` and ``val_loss``.
+    """
+    cfg = build_config(args)
+    dm = fdl.build(cfg.data)
+    dm.setup("validate")
+    val = dm.val_dataset
+    fix_windows(val)
+    # the dataset loads only the index's `mean` statistic (see `_load_sampling_index`)
+    bins = build_intensity_bins(val.candidates["mean"].to_numpy(dtype=float), args.bin_edges, args.per_bin)
+    for label, _, _, pos in bins:
+        logger.info("bin {}: {} windows", label, len(pos))
+
+    entries = [(ckpt, ckpt, None) for ckpt in args.checkpoint]
+    if not args.no_references:
+        entries += [(ref, None, ref) for ref in REFERENCE_NETWORKS]
+
+    rows = []
+    for label, ckpt, reference in entries:
+        module = build_module(cfg, reference)
+        step = load_checkpoint_weights(module, ckpt) if ckpt is not None else None
+        for bin_label, lo, hi, pos in bins:
+            loss = score(module, val_loader(dm, Subset(val, pos.tolist())), None, seed=args.seed)
+            logger.info("{} (step {}) bin {}: val_loss={:.5f}", label, step, bin_label, loss)
+            rows.append(
+                {
+                    "forecast": label,
+                    "run_id": read_checkpoint_run_id(ckpt) if ckpt is not None else "",
+                    "global_step": step,
+                    "bin": bin_label,
+                    "lower": lo,
+                    "upper": hi,
+                    "n_windows": len(pos),
+                    "val_loss": loss,
+                }
+            )
+    df = pd.DataFrame(rows)
+    df.to_csv(args.out, index=False)
+    logger.info("wrote {}", args.out)
+    with pd.option_context("display.width", 300, "display.max_columns", 30, "display.max_colwidth", 60):
+        table = df.pivot_table(index="forecast", columns="bin", values="val_loss", sort=False)
+        print(f"\nval_loss per bin of the index `mean` (dBZ), up to {args.per_bin} windows per bin (seed {args.seed}):")
+        print(table.to_string(float_format=lambda x: f"{x:.4f}"))
+    return df
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments."""
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--check", choices=["coverage", "noise", "checkpoints"], required=True)
+    p.add_argument("--check", choices=["coverage", "noise", "checkpoints", "bins"], required=True)
     p.add_argument("--checkpoint", action="append", default=[], help="Lightning checkpoint (repeatable)")
     p.add_argument("--batch-size", type=int, default=16)
     p.add_argument("--forecast-steps", type=int, default=12)
@@ -474,9 +603,16 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--n-windows", type=int, default=2000, help="checkpoints: size of the fixed val subset")
     p.add_argument("--bins", type=int, default=3, help="checkpoints: quantile bins of the index `mean`")
     p.add_argument("--seed", type=int, default=0, help="seed for the fixed-noise scores")
-    p.add_argument("--no-references", action="store_true", help="checkpoints: skip the persistence and always-dry rows")
+    p.add_argument(
+        "--no-references", action="store_true", help="checkpoints, bins: skip the persistence and always-dry rows"
+    )
+    p.add_argument(
+        "--bin-edges", type=float, nargs="+", default=DEFAULT_BIN_EDGES, help="bins: edges (dBZ) on the index `mean`"
+    )
+    p.add_argument("--per-bin", type=int, default=500, help="bins: windows per bin")
+    p.add_argument("--out", default="val_bins.csv", help="bins: output CSV")
     args = p.parse_args(argv)
-    if args.check in ("noise", "checkpoints") and not args.checkpoint:
+    if args.check in ("noise", "checkpoints", "bins") and not args.checkpoint:
         p.error(f"--check {args.check} needs at least one --checkpoint")
     return args
 
@@ -484,7 +620,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> None:
     """Run the selected check."""
     args = parse_args(argv)
-    {"coverage": check_coverage, "noise": check_noise, "checkpoints": check_checkpoints}[args.check](args)
+    checks = {"coverage": check_coverage, "noise": check_noise, "checkpoints": check_checkpoints, "bins": check_bins}
+    checks[args.check](args)
 
 
 if __name__ == "__main__":

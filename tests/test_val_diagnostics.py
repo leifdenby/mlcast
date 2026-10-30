@@ -137,6 +137,31 @@ def test_select_trainlike_uses_train_selector():
     assert len(vd.select_trainlike(_DM(), candidates, seed=0)) == len(candidates)
 
 
+def test_build_intensity_bins_fills_each_bin_evenly():
+    values = np.array([-32.0] * 10 + [-20.0] * 5 + [3.0] * 3 + [30.0])
+    bins = vd.build_intensity_bins(values, edges=[-32.0, 0.0, 20.0], per_bin=4)
+
+    labels = [b[0] for b in bins]
+    assert labels == ["<= -32", "(-32, 0]", "(0, 20]", "> 20"]
+    sizes = [len(b[3]) for b in bins]
+    assert sizes == [4, 4, 3, 1]
+    # positions stay inside their bin and are spread over it (first and last member kept)
+    assert list(bins[0][3]) == [0, 3, 6, 9]
+    for _, lo, hi, pos in bins:
+        assert np.all((values[pos] > lo) & (values[pos] <= hi))
+
+
+def test_build_intensity_bins_skips_empty_bins():
+    bins = vd.build_intensity_bins(np.array([-32.0, -32.0]), edges=[-32.0, 0.0], per_bin=10)
+    assert [b[0] for b in bins] == ["<= -32"]
+
+
+def test_read_checkpoint_run_id():
+    assert vd.read_checkpoint_run_id("114/abc123/checkpoints/epoch=0-step=5.ckpt") == "abc123"
+    assert vd.read_checkpoint_run_id("/x/114/abc123/checkpoints/a.ckpt") == "abc123"
+    assert vd.read_checkpoint_run_id("tiny.ckpt") == ""
+
+
 def test_parse_args_requires_checkpoint_for_gpu_checks():
     with pytest.raises(SystemExit):
         vd.parse_args(["--check", "noise"])
@@ -251,6 +276,20 @@ def test_checks_run_end_to_end(tiny_cfg, monkeypatch, capsys):
         )
     )
     assert list(no_refs["forecast"]) == [ckpt]
+
+    out = Path(ckpt).parent / "bins.csv"
+    bins = vd.check_bins(
+        vd.parse_args(
+            ["--check", "bins", "--checkpoint", ckpt, "--bin-edges", "0.5", "--per-bin", "4", "--out", str(out)]
+        )
+    )
+    assert out.exists()
+    assert set(bins["forecast"]) == {ckpt, "persistence", "always-dry"}
+    assert set(bins["bin"]) == {"<= 0.5", "> 0.5"}
+    assert (bins.loc[bins["forecast"] == ckpt, "global_step"] == 1).all()
+    assert bins["global_step"][bins["forecast"] == "persistence"].isna().all()
+    assert np.all(np.isfinite(bins["val_loss"]))
+    assert (bins["n_windows"] <= 4).all()
 
 
 def test_build_config_applies_overrides():
