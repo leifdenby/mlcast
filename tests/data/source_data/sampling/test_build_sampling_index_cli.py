@@ -157,6 +157,16 @@ def test_write_failure_mid_scan_raises(zarr_10min: Path, tmp_path: Path) -> None
             _run_stats(zarr_10min, tmp_path / "stats.parquet", "--time-step-minutes", "10")
 
 
+def test_close_failure_raises(zarr_10min: Path, tmp_path: Path) -> None:
+    """A failure when closing the writer (the footer is written then) must
+    propagate too, not leave the writer thread waiting forever."""
+    writer = MagicMock()
+    writer.close.side_effect = OSError(122, "Disk quota exceeded")
+    with patch(f"{_MODULE}._open_parquet_writer", return_value=writer):
+        with pytest.raises(OSError, match="Disk quota exceeded"):
+            _run_stats(zarr_10min, tmp_path / "stats.parquet", "--time-step-minutes", "10")
+
+
 def test_all_windows_filtered_out_fails(tmp_path: Path) -> None:
     """Valid time axis but every window exceeds max_nan: exit non-zero, and the
     (empty) parquet is left on disk for inspection."""
