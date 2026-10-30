@@ -55,7 +55,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (DMI only) `examples/scripts/val_diagnostics.py` checks whether the DMI config's `val_loss` can tell
   checkpoints apart: what the first `limit_val_batches` windows of the (unshuffled, time-sorted) val set cover,
   the spread of `val_loss` over repeated scorings of one checkpoint, and checkpoint losses on a fixed,
-  time-strided val subset with fixed windows and seed. @leifdenby
+  time-strided val subset with fixed windows and seed, per dry-to-wet bin and on a rain-weighted
+  ("trainlike") subset, next to persistence and always-dry reference forecasts. @leifdenby
 
 ### Changed
 

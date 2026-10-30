@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 
 _SCRIPT = Path(__file__).parents[1] / "examples" / "scripts" / "val_diagnostics.py"
 _spec = importlib.util.spec_from_file_location("val_diagnostics", _SCRIPT)
@@ -78,6 +79,62 @@ def test_fix_windows_pins_window_start():
     vd.fix_windows(ds)
     # `__getitem__` draws a random start only when steps < dt
     assert not ds.steps < ds.dt
+
+
+def test_persistence_repeats_last_frame_for_every_lead_and_member():
+    x = torch.arange(2 * 3 * 1 * 4 * 4, dtype=torch.float32).reshape(2, 3, 1, 4, 4)
+    out = vd.PersistenceNetwork()(x, steps=5, ensemble_size=3)
+
+    assert out.shape == (2, 5, 3, 4, 4)
+    assert torch.equal(out, x[:, -1:].expand(2, 5, 3, 4, 4))
+
+
+def test_always_dry_is_dry_everywhere():
+    x = torch.rand(2, 3, 1, 4, 4)
+    out = vd.AlwaysDryNetwork()(x, steps=5, ensemble_size=3)
+
+    assert out.shape == (2, 5, 3, 4, 4)
+    assert torch.all(out == vd.DRY_VALUE)
+
+
+def test_reference_forecasts_score_zero_on_dry_windows():
+    """Persistence and always-dry are exact on a window with no rain at all."""
+    x = torch.full((2, 3, 1, 8, 8), vd.DRY_VALUE)
+    target = torch.full((2, 4, 1, 8, 8), vd.DRY_VALUE)
+    for reference in vd.REFERENCE_NETWORKS:
+        module = vd.build_module(_tiny_module_cfg(), reference=reference)
+        preds = module(x, forecast_steps=4, ensemble_size=3)
+        loss = module.criterion(preds, target, torch.ones(2, 1, 1, 8, 8))
+        loss = loss[0] if isinstance(loss, tuple) else loss
+        assert float(loss) == pytest.approx(0.0, abs=1e-7), reference
+
+
+def _tiny_module_cfg():
+    """Experiment config whose ``pl_module`` uses the DMI training loss (afCRPS, masked)."""
+    from mlcast.config import training_experiment
+
+    cfg = training_experiment.as_buildable()
+    cfg.pl_module.network.num_blocks = 1
+    cfg.pl_module.loss_class = "afcrps"
+    cfg.pl_module.ensemble_size = 3
+    return cfg
+
+
+def test_select_trainlike_uses_train_selector():
+    from mlcast.data.source_data.sampling import ImportanceSelector
+
+    candidates = pd.DataFrame({"t": np.arange(6), "mean": [-32.0, -32.0, -10.0, 0.0, 5.0, 20.0]})
+
+    class _DM:
+        train_selector = ImportanceSelector()
+
+    kept = vd.select_trainlike(_DM(), candidates, seed=0)
+    # dBZ means below 0 get a non-positive weight and are never kept (see STATUS)
+    assert (kept["mean"] > -1).all()
+    assert 20.0 in kept["mean"].to_numpy()
+
+    _DM.train_selector = None
+    assert len(vd.select_trainlike(_DM(), candidates, seed=0)) == len(candidates)
 
 
 def test_parse_args_requires_checkpoint_for_gpu_checks():
@@ -183,9 +240,17 @@ def test_checks_run_end_to_end(tiny_cfg, monkeypatch, capsys):
     table = vd.check_checkpoints(
         vd.parse_args(["--check", "checkpoints", "--checkpoint", ckpt, "--n-windows", "6", "--bins", "2"])
     )
-    assert len(table) == 1
-    assert table.shape[1] == 1 + 1 + 2  # checkpoint, all, two `mean` bins
-    assert np.all(np.isfinite(table.drop(columns="checkpoint").to_numpy(dtype=float)))
+    assert list(table["forecast"]) == [ckpt, "persistence", "always-dry"]
+    assert table.shape[1] == 1 + 1 + 2 + 1  # forecast, all, two `mean` bins, trainlike
+    assert table.columns[-1].startswith("trainlike")
+    assert np.all(np.isfinite(table.drop(columns="forecast").to_numpy(dtype=float)))
+
+    no_refs = vd.check_checkpoints(
+        vd.parse_args(
+            ["--check", "checkpoints", "--checkpoint", ckpt, "--n-windows", "6", "--bins", "2", "--no-references"]
+        )
+    )
+    assert list(no_refs["forecast"]) == [ckpt]
 
 
 def test_build_config_applies_overrides():

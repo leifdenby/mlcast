@@ -18,7 +18,10 @@ Three checks, selected with ``--check``:
   the first is the noise floor of the logged ``val_loss``.
 - ``checkpoints`` (GPU): score each ``--checkpoint`` on the same fixed
   ``--n-windows`` windows strided evenly across the whole val period, overall
-  and per quantile bin of the index ``mean`` (dry to wet windows).
+  and per quantile bin of the index ``mean`` (dry to wet windows), and on as
+  many val windows chosen by the train selector (``trainlike``: the
+  rain-weighted mix the model trains on). Persistence and always-dry are
+  scored the same way as reference rows (``--no-references`` to skip them).
 
 Run from the repository root on a machine with the DMI data, e.g.::
 
@@ -35,12 +38,14 @@ MLflow run is started.
 """
 
 import argparse
+import copy
 import sys
 
 import fiddle as fdl
 import numpy as np
 import pandas as pd
 import pytorch_lightning as pl
+import torch
 from loguru import logger
 from torch.utils.data import DataLoader, Subset
 
@@ -186,12 +191,91 @@ def build_config(args: argparse.Namespace) -> fdl.Config:
     return cfg
 
 
+# Normalised value of "no rain": the reflectivity normalisation maps everything at
+# or below its 0 dBZ floor to `norm_min` (-1), which is also the dataset's NaN fill.
+DRY_VALUE = -1.0
+
+
+class PersistenceNetwork(torch.nn.Module):
+    """Reference forecast: the last input frame, repeated for every lead time and member."""
+
+    def forward(self, x: torch.Tensor, steps: int, ensemble_size: int = 1) -> torch.Tensor:
+        """Repeat the last input frame.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input of shape ``(batch, time, channels, height, width)``.
+        steps : int
+            Number of lead times.
+        ensemble_size : int
+            Number of (identical) members, concatenated on the channel axis like
+            ``ConvGruModel``'s.
+
+        Returns
+        -------
+        torch.Tensor
+            Shape ``(batch, steps, ensemble_size * channels, height, width)``.
+        """
+        return x[:, -1:].repeat(1, steps, ensemble_size, 1, 1)
+
+
+class AlwaysDryNetwork(torch.nn.Module):
+    """Reference forecast: no rain anywhere, at every lead time, for every member."""
+
+    def forward(self, x: torch.Tensor, steps: int, ensemble_size: int = 1) -> torch.Tensor:
+        """Return a forecast of all ``DRY_VALUE``.
+
+        Parameters
+        ----------
+        x : torch.Tensor
+            Input of shape ``(batch, time, channels, height, width)``.
+        steps : int
+            Number of lead times.
+        ensemble_size : int
+            Number of (identical) members.
+
+        Returns
+        -------
+        torch.Tensor
+            Shape ``(batch, steps, ensemble_size * channels, height, width)``.
+        """
+        b, _, c, h, w = x.shape
+        return torch.full((b, steps, ensemble_size * c, h, w), DRY_VALUE, dtype=x.dtype, device=x.device)
+
+
+REFERENCE_NETWORKS = {"persistence": PersistenceNetwork, "always-dry": AlwaysDryNetwork}
+
+
+def build_module(cfg: fdl.Config, reference: str | None = None):
+    """Build the Lightning module, optionally with a reference network in place of the ConvGRU.
+
+    Parameters
+    ----------
+    cfg : fdl.Config
+        Experiment config; only ``cfg.pl_module`` is built.
+    reference : str or None
+        A key of ``REFERENCE_NETWORKS``, or ``None`` for the configured model.
+
+    Returns
+    -------
+    NowcastLightningModule
+        Module with the same loss as training.
+    """
+    module = fdl.build(cfg.pl_module)
+    if reference is not None:
+        module.network = REFERENCE_NETWORKS[reference]()
+    return module
+
+
 def val_loader(datamodule, dataset) -> DataLoader:
     """Build an unshuffled loader over ``dataset`` with the datamodule's loader settings."""
     return DataLoader(dataset, shuffle=False, **datamodule.dataloader_kwargs)
 
 
-def score(module, loader: DataLoader, ckpt_path: str, seed: int | None, limit_batches: int | float = 1.0) -> float:
+def score(
+    module, loader: DataLoader, ckpt_path: str | None, seed: int | None, limit_batches: int | float = 1.0
+) -> float:
     """Return the mean ``val_loss`` of a checkpoint over ``loader``.
 
     Parameters
@@ -200,8 +284,9 @@ def score(module, loader: DataLoader, ckpt_path: str, seed: int | None, limit_ba
         Freshly built module; the checkpoint's weights are loaded into it.
     loader : torch.utils.data.DataLoader
         Validation loader.
-    ckpt_path : str
-        Lightning checkpoint to score.
+    ckpt_path : str or None
+        Lightning checkpoint to score, or ``None`` to score ``module`` as it is
+        (for the reference forecasts).
     seed : int or None
         If given, ``pl.seed_everything(seed)`` before scoring, which fixes the
         ensemble noise. ``None`` leaves it random, as in training.
@@ -294,40 +379,81 @@ def check_noise(args: argparse.Namespace) -> dict[str, np.ndarray]:
     return results
 
 
-def check_checkpoints(args: argparse.Namespace) -> pd.DataFrame:
-    """Score each checkpoint on the same fixed, time-spread val windows.
+def select_trainlike(datamodule, candidates: pd.DataFrame, seed: int) -> pd.DataFrame:
+    """Return the val candidates the train selector would keep (rain-weighted, like training).
 
-    Returns one row per checkpoint, with the loss over all windows and per
-    quantile bin of the index ``mean`` (dry to wet).
+    Parameters
+    ----------
+    datamodule : SourceDataDataModule
+        Supplies ``train_selector``; with none, all candidates are returned.
+    candidates : pandas.DataFrame
+        Val candidates, sorted by time.
+    seed : int
+        Seed for the selector's random keep/discard draw.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The kept rows, in time order.
+    """
+    if datamodule.train_selector is None:
+        return candidates
+    kept = datamodule.train_selector.select(candidates, np.random.default_rng(seed))
+    return candidates.iloc[kept].reset_index(drop=True)
+
+
+def check_checkpoints(args: argparse.Namespace) -> pd.DataFrame:
+    """Score each checkpoint, and the reference forecasts, on fixed, time-spread val windows.
+
+    Two window sets are used, both ``--n-windows`` long and strided across the
+    val period: ``uniform`` (the val set as configured, i.e. the real mix of
+    dry and wet) and ``trainlike`` (the val windows the train selector would
+    keep, i.e. the rain-weighted mix the model trains on).
+
+    Returns one row per checkpoint and per reference forecast (persistence,
+    always-dry), with the loss over all uniform windows, per quantile bin of
+    their index ``mean`` (dry to wet), and over the trainlike windows.
     """
     cfg = build_config(args)
     dm = fdl.build(cfg.data)
     dm.setup("validate")
     val = dm.val_dataset
     fix_windows(val)
-    pos = strided_positions(len(val), args.n_windows)
-    val.candidates = val.candidates.iloc[pos].reset_index(drop=True)
-    times = window_start_times(val)
-    logger.info("fixed val subset: {} windows from {} to {}", len(val), times.min(), times.max())
+    trainlike = copy.copy(val)
+    trainlike.candidates = select_trainlike(dm, val.candidates, seed=args.seed)
+    for name, ds in (("uniform", val), ("trainlike", trainlike)):
+        pos = strided_positions(len(ds), args.n_windows)
+        ds.candidates = ds.candidates.iloc[pos].reset_index(drop=True)
+        times = window_start_times(ds)
+        logger.info("fixed {} subset: {} windows from {} to {}", name, len(ds), times.min(), times.max())
 
     # the dataset loads only the index's `mean` statistic (see `_load_sampling_index`)
     bins = quantile_bins(val.candidates["mean"].to_numpy(dtype=float), args.bins)
-    subsets = {"all": np.arange(len(val))}
+    subsets = {"all": (val, np.arange(len(val)))}
     for i, b in enumerate(bins):
         m = val.candidates["mean"].iloc[b]
-        subsets[f"mean q{i + 1} [{m.min():.3g}, {m.max():.3g}]"] = b
+        subsets[f"mean q{i + 1} [{m.min():.3g}, {m.max():.3g}]"] = (val, b)
+    m = trainlike.candidates["mean"]
+    subsets[f"trainlike [{m.min():.3g}, {m.max():.3g}]"] = (trainlike, np.arange(len(trainlike)))
+
+    entries = [(ckpt, ckpt, None) for ckpt in args.checkpoint]
+    if not args.no_references:
+        entries += [(ref, None, ref) for ref in REFERENCE_NETWORKS]
 
     rows = []
-    for ckpt in args.checkpoint:
-        row = {"checkpoint": ckpt}
-        for name, idx in subsets.items():
-            loader = val_loader(dm, Subset(val, idx.tolist()))
-            row[name] = score(fdl.build(cfg.pl_module), loader, ckpt, seed=args.seed)
-            logger.info("{} {}: val_loss={:.5f}", ckpt, name, row[name])
+    for label, ckpt, reference in entries:
+        row = {"forecast": label}
+        for name, (ds, idx) in subsets.items():
+            loader = val_loader(dm, Subset(ds, idx.tolist()))
+            row[name] = score(build_module(cfg, reference), loader, ckpt, seed=args.seed)
+            logger.info("{} {}: val_loss={:.5f}", label, name, row[name])
         rows.append(row)
 
-    with pd.option_context("display.width", 250, "display.max_columns", 20, "display.max_colwidth", 90):
-        print(f"\nval_loss on {len(val)} fixed windows strided across the val period (seed {args.seed}):")
+    with pd.option_context("display.width", 300, "display.max_columns", 20, "display.max_colwidth", 90):
+        print(
+            f"\nval_loss on fixed windows strided across the val period (seed {args.seed}): "
+            f"{len(val)} uniform (all + `mean` bins), {len(trainlike)} trainlike:"
+        )
         print(pd.DataFrame(rows).to_string(index=False, float_format=lambda x: f"{x:.5f}"))
     return pd.DataFrame(rows)
 
@@ -348,6 +474,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p.add_argument("--n-windows", type=int, default=2000, help="checkpoints: size of the fixed val subset")
     p.add_argument("--bins", type=int, default=3, help="checkpoints: quantile bins of the index `mean`")
     p.add_argument("--seed", type=int, default=0, help="seed for the fixed-noise scores")
+    p.add_argument("--no-references", action="store_true", help="checkpoints: skip the persistence and always-dry rows")
     args = p.parse_args(argv)
     if args.check in ("noise", "checkpoints") and not args.checkpoint:
         p.error(f"--check {args.check} needs at least one --checkpoint")
