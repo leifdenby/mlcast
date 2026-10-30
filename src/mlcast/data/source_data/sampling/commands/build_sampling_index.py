@@ -346,6 +346,10 @@ def _parquet_writer(
     into Arrow RecordBatches and append to a single ParquetWriter so the
     on-disk file stays a single self-contained parquet.
 
+    Write and close failures are appended to `errors` for the producer to
+    re-raise.
+    """
+    total_rows = 0
     try:
         while (item := output_queue.get()) is not None:
             if item["t"].size == 0:
