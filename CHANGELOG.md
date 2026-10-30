@@ -20,8 +20,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   init. `SourceDataDataModule` takes per-split `train_selector` and `eval_selector` arguments; the default
   experiment uses importance sampling on train and uniform 10% sampling on val/test.
   [#17](https://github.com/mlcast-community/mlcast/pull/17) @franchg @leifdenby @noralinn
-- CI check that fails pull requests which don't update `CHANGELOG.md`; PRs that don't need an entry can opt out
-  with the `no changelog` label. [#26](https://github.com/mlcast-community/mlcast/pull/26) @leifdenby
 
 ### Changed
 
@@ -35,13 +33,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Breaking:** `target_mask` is now collapsed over the whole sequence to shape `(1, C, H, W)`. A cell is valid
   only if it is finite at every input and target step, and the masked loss broadcasts the mask over the forecast
   steps. [#17](https://github.com/mlcast-community/mlcast/pull/17) @franchg @leifdenby @noralinn
-- `bottleneck`, `pyarrow` and `pydantic` are now core dependencies; the unused `fire` dependency is removed.
-  [#17](https://github.com/mlcast-community/mlcast/pull/17) @franchg @leifdenby @noralinn
 - `mlcast build-sampling-index` now writes its output next to the Zarr dataset when `-o` is omitted (was the
   current working directory); pass `-o ./name.parquet` or an absolute path to write elsewhere.
   [#31](https://github.com/mlcast-community/mlcast/pull/31) @leifdenby
 - The CLI and `mlcast.data` import lazily, so `mlcast -h` and the data-prep commands start in well under a
   second. [#17](https://github.com/mlcast-community/mlcast/pull/17) @franchg @leifdenby @noralinn
+- **Breaking:** `torch`, `torchvision` and `pytorch-lightning` are no longer core dependencies and are installed
+  through the new `cpu` and `gpu-cu126` extras or the existing `gpu-cu128` / `gpu-cu130` extras
+  (`uv sync --extra cpu`, `pip install "mlcast[cpu]"`). After a one-time `uv sync --extra ...`, plain `uv run`
+  no longer swaps the installed PyTorch build. [#30](https://github.com/mlcast-community/mlcast/pull/30) @leifdenby
 
 ### Fixed
 
@@ -52,8 +52,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so an unwritable output (e.g. disk quota exceeded) fails immediately instead of after the scan starts. A write
   failure mid-scan now aborts the run rather than leaving it hanging, and the output path is logged as an
   absolute path. [#31](https://github.com/mlcast-community/mlcast/pull/31) @leifdenby
+
+### Maintenance
+
+- `bottleneck`, `pyarrow` and `pydantic` are now core dependencies; the unused `fire` dependency is removed.
+  [#17](https://github.com/mlcast-community/mlcast/pull/17) @franchg @leifdenby @noralinn
+- CI check that fails pull requests which don't update `CHANGELOG.md`; PRs that don't need an entry can opt out
+  with the `no changelog` label. [#26](https://github.com/mlcast-community/mlcast/pull/26) @leifdenby
+- CI workflow that runs the pytest suite on every push and pull request.
+  [#30](https://github.com/mlcast-community/mlcast/pull/30) @leifdenby
 - Missing changelog entries for [#17](https://github.com/mlcast-community/mlcast/pull/17).
   [#26](https://github.com/mlcast-community/mlcast/pull/26) @leifdenby
+- Register `equivalent_reflectivity_factor` (radar reflectivity in dBZ) in the normalization registries, so
+  training on it no longer fails with a `KeyError`, and drop the non-CF `radar_reflectivity` name from the
+  sampler. [#24](https://github.com/mlcast-community/mlcast/pull/24) @leifdenby
 
 ## v0.1.0 - 2026-06-01
 
