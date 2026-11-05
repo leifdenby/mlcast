@@ -35,6 +35,7 @@ dependencies = [
   "absl-py>=2.4",
   "beartype>=0.18",
   "bottleneck>=1.6",
+  "cartopy>=0.26",
   "cf-xarray>=0.10",
   "etils>=1.13",
   "fiddle>=0.3",
