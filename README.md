@@ -560,9 +560,9 @@ The latent diffusion model is built from a
   of residual 3D convolution blocks to produce a conditioning context for the
   denoiser U-Net. This answers "what did the recent past look like in latent
   space?"
-- **DenoiserUNet** — a timestep-aware U-Net with 3D convolutions over the
+- **DenoiserUNet** — a diffusion-step-aware U-Net with 3D convolutions over the
   latent spatial dimensions (time dimension is preserved). It receives the
-  noisy target latent, a diffusion timestep embedding (sinusoidal), and the
+  noisy target latent, a diffusion step embedding (sinusoidal), and the
   conditioning context from the conditioner. The U-Net predicts the additive
   noise (`eps` parameterization) that was applied to reach the current
   timestep.

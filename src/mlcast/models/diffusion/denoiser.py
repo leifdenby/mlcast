@@ -1,4 +1,4 @@
-"""Timestep-aware denoising network for latent diffusion."""
+"""Diffusion-step-aware denoising network for latent diffusion."""
 
 import math
 
@@ -9,13 +9,17 @@ from jaxtyping import Float, jaxtyped
 from loguru import logger
 
 
-class TimestepEmbedding(nn.Module):
-    """Sinusoidal timestep embedding followed by a small MLP.
+class DiffusionStepEmbedding(nn.Module):
+    """Sinusoidal embedding of the diffusion step followed by a small MLP.
+
+    The diffusion step is the position in the noising/denoising chain, not a
+    forecast time. The diffusion literature (and LDCast) usually calls this a
+    "timestep embedding".
 
     Parameters
     ----------
     embedding_dim : int
-        Number of channels in the generated timestep embedding.
+        Number of channels in the generated diffusion step embedding.
     """
 
     def __init__(self, embedding_dim: int) -> None:
@@ -29,17 +33,17 @@ class TimestepEmbedding(nn.Module):
 
     @jaxtyped(typechecker=beartype)
     def forward(self, timesteps: torch.Tensor) -> Float[torch.Tensor, "batch embedding_dim"]:
-        """Embed integer diffusion timesteps.
+        """Embed integer diffusion steps.
 
         Parameters
         ----------
         timesteps : torch.Tensor
-            Integer diffusion timesteps.
+            Integer diffusion step for each sample.
 
         Returns
         -------
         Float[torch.Tensor, "batch embedding_dim"]
-            Projected sinusoidal timestep embeddings.
+            Projected sinusoidal diffusion step embeddings.
         """
         half_dim = self.embedding_dim // 2
         frequencies = torch.exp(
@@ -62,13 +66,13 @@ class _DenoiserBlock(nn.Module):
         Number of input channels.
     out_channels : int
         Number of output channels.
-    timestep_channels : int
-        Number of channels in the timestep embedding.
+    diffusion_step_channels : int
+        Number of channels in the diffusion step embedding.
     """
 
-    def __init__(self, in_channels: int, out_channels: int, timestep_channels: int) -> None:
+    def __init__(self, in_channels: int, out_channels: int, diffusion_step_channels: int) -> None:
         super().__init__()
-        self.timestep_projection = nn.Linear(timestep_channels, out_channels)
+        self.diffusion_step_projection = nn.Linear(diffusion_step_channels, out_channels)
         self.net = nn.Sequential(
             nn.GroupNorm(num_groups=1, num_channels=in_channels),
             nn.SiLU(),
@@ -79,24 +83,24 @@ class _DenoiserBlock(nn.Module):
         )
         self.skip_connection = nn.Identity() if in_channels == out_channels else nn.Conv3d(in_channels, out_channels, 1)
 
-    def forward(self, x: torch.Tensor, timestep_embedding: torch.Tensor) -> torch.Tensor:
-        """Apply timestep-conditioned residual denoising.
+    def forward(self, x: torch.Tensor, diffusion_step_embedding: torch.Tensor) -> torch.Tensor:
+        """Apply diffusion-step-conditioned residual denoising.
 
         Parameters
         ----------
         x : torch.Tensor
             Hidden denoising tensor.
-        timestep_embedding : torch.Tensor
-            Timestep embedding for each batch item.
+        diffusion_step_embedding : torch.Tensor
+            Diffusion step embedding for each batch item.
 
         Returns
         -------
         torch.Tensor
             Updated hidden tensor.
         """
-        timestep_bias = self.timestep_projection(timestep_embedding)[:, :, None, None, None]
+        diffusion_step_bias = self.diffusion_step_projection(diffusion_step_embedding)[:, :, None, None, None]
         h = self.net(x)
-        return self.skip_connection(x) + h + timestep_bias
+        return self.skip_connection(x) + h + diffusion_step_bias
 
 
 class _SpatialDownsample(nn.Module):
@@ -153,7 +157,7 @@ class _SpatialUpsample(nn.Module):
 
 
 class DenoiserUNet(nn.Module):
-    """Compact timestep-aware U-Net denoiser for latent tensors.
+    """Compact diffusion-step-aware U-Net denoiser for latent tensors.
 
     This is a real U-Net-style architecture: it builds a spatial downsampling
     path, applies a bottleneck at the lowest spatial resolution, upsamples back
@@ -161,7 +165,7 @@ class DenoiserUNet(nn.Module):
     skip connections from the down path into the up path. It differs from a
     plain image U-Net because it operates on 3D latent tensors and only changes
     spatial resolution; the temporal dimension is preserved throughout. Each
-    residual block also receives a diffusion timestep embedding.
+    residual block also receives a diffusion step embedding.
 
     Parameters
     ----------
@@ -190,7 +194,7 @@ class DenoiserUNet(nn.Module):
         self.condition_channels = condition_channels
         self.hidden_channels = hidden_channels
         self.num_blocks = num_blocks
-        self.timestep_embedding = TimestepEmbedding(hidden_channels)
+        self.diffusion_step_embedding = DiffusionStepEmbedding(hidden_channels)
         self.input_projection = nn.Conv3d(latent_channels + condition_channels, hidden_channels, kernel_size=1)
         self.down_blocks = nn.ModuleList(
             _DenoiserBlock(hidden_channels, hidden_channels, hidden_channels) for _ in range(num_blocks)
@@ -241,22 +245,22 @@ class DenoiserUNet(nn.Module):
             context = torch.nn.functional.interpolate(context, size=noisy.shape[2:], mode="nearest")
 
         x = self.input_projection(torch.cat([noisy, context], dim=1))
-        timestep_embedding = self.timestep_embedding(timesteps)
+        diffusion_step_embedding = self.diffusion_step_embedding(timesteps)
 
         skips: list[torch.Tensor] = []
         for block_idx, block in enumerate(self.down_blocks):
-            x = block(x, timestep_embedding)
+            x = block(x, diffusion_step_embedding)
             if block_idx < len(self.downsamples):
                 skips.append(x)
                 x = self.downsamples[block_idx](x)
 
-        x = self.bottleneck(x, timestep_embedding)
+        x = self.bottleneck(x, diffusion_step_embedding)
 
         for upsample, block in zip(self.upsamples, self.up_blocks, strict=True):
             x = upsample(x)
             skip = skips.pop()
             if x.shape[-2:] != skip.shape[-2:]:
                 x = torch.nn.functional.interpolate(x, size=skip.shape[2:], mode="nearest")
-            x = block(torch.cat([x, skip], dim=1), timestep_embedding)
+            x = block(torch.cat([x, skip], dim=1), diffusion_step_embedding)
 
         return self.output_projection(x)
