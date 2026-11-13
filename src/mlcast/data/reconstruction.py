@@ -1,4 +1,4 @@
-"""Reconstruction datasets built from sequence datasets.
+"""Reconstruction dataset wrapper built on top of sequence datasets.
 
 The reconstruction task reuses normalized source-data sequences and exposes all
 overlapping temporal windows of length ``input_steps`` as individual training
