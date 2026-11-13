@@ -356,51 +356,107 @@ resolve the thread when its commit is pushed.
   `convgru_training_experiment` and re-execute it. Expanding the notebook into a Fiddle
   introduction is a separate PR from `main`, see `fiddle-notebook-plan.md`.
 
-### 10.1 Agreed quick fixes
-- [ ] `README.md:171`: add the missing `mlcast train \` before the two diffusion examples.
-- [ ] `docs/generate_base_experiment_config_diagram.py`: rename to `generate_convgru_config_diagram.py`.
-- [ ] `config/base.py:1`: "radar nowcasting" → "nowcasting".
-- [ ] `data/reconstruction.py:1,15`: align module docstring with `forecasting.py`; drop "stage-1" wording.
-- [ ] `data/datamodules.py:63`: mark `_wrap_sequence_dataset` as `@abstractmethod`.
-- [ ] `data/reconstruction.py:43`: require `input_steps == sequence_steps` instead of taking only the first window.
-- [ ] `models/diffusion/denoiser.py:228`: warn on context/noisy time-length mismatch.
-- [ ] Renames: `TimestepEmbedding` → `DiffusionStepEmbedding` (docstring notes the usual
-  "timestep" name), `OutputSpaceForecastingTaskModule` → `ObservationSpaceForecastingTaskModule`,
-  `LatentDiffusionTaskModule` → `LatentSpaceForecastingTaskModule`.
+### 10.1 Sequencing
+@sidekock's proposal (2026-11-13,
+https://github.com/mlcast-community/mlcast/pull/16#issuecomment-6849636037):
 
-### 10.2 Bugs
-- [ ] `config/fiddlers.py:158`: `toggle_masking` breaks the reconstruction stage
-  (`ReconstructionTaskModule` has no `masked_loss`; `return_mask` leaks into DataLoader kwargs).
-- [ ] `config/fiddlers.py:138`: channel fiddler must also set output channels.
-- [ ] `config/archetype/latent_diffusion.py:47`: drop the stage-1-only `trainer` property.
-- [ ] `models/diffusion/net.py:43`: check whether `conditioner`/`denoiser`/`scheduler` attributes are used.
-- [x] `data/forecasting.py:102`: also return the target-step mask so scores can be restricted to the
-  radar domain. Covered by the merge: the mask is now valid only where every input and target
-  step is finite. Reply on the thread to explain.
+1. Fix the base architecture and add the multi-stage training config; move the ConvGRU config,
+   consistency checks and fiddlers into a ConvGRU subpackage, with a new latent diffusion one.
+2. Eval and validate/test/predict CLI that can use checkpoints.
+3. Generalise the latent architecture (from autoencoders to any encoder/decoder).
+4. Multi-part loss option in the loss base class.
+5. Revisit 1: one general way of setting up all experiment types (ConvGRU and latent diffusion).
 
-### 10.3 Structural changes
-- [ ] Multi-stage experiments (themes B/C/D; `convgru.py:1`, `latent_diffusion.py:150`,
-  `consistency_checks.py:121`, @gdepaepe's proposal): `Experiment` vs `MultiStageExperiment`
-  base, run/train a single stage from the CLI, per-stage checkpoint (port `resume_training`
-  from `dmidk/dev/dmi-convgru-training`), consistency checks looped over stages.
-- [ ] `LatentEncoderDecoder` ABC with `BaseEncoder`/`BaseDecoder`; rename `autoencoder` →
-  `latent_encoder_decoder` (@matschreiner, @sidekock agreed to do it in this PR).
-- [ ] `BaseDenoiser` ABC so `DenoiserUNet` is one implementation (`diffusion/net.py:22`,
-  `denoiser.py:55`); decide the `.forward()` signature.
-- [ ] VAE: mean/logvar split in the encoder, KL term, decoder takes the mean
-  (`autoencoder/net.py:65`); depends on multi-loss support (@gdepaepe). Possibly a follow-up PR.
+Agreed: **this PR does step 1** (10.3–10.6 below), plus the quick fixes (10.2) and the dataset
+rework from @sidekock's second comment (10.6). Steps 2–5 are follow-up PRs (10.7). "Fix the base
+architecture" means applying the review fixes to the autoencoder and diffusion model classes.
+- [ ] Reply on the PR confirming this sequencing.
 
-### 10.4 Discussion only (reply on PR, no code yet)
-- [ ] Train/val/test splits and leakage gaps (`latent_diffusion.py:89`, `datamodules.py:1`).
-  Partly addressed by the merge (#17): indexed samples must fit entirely inside their split, so
-  no sequence crosses a split boundary. Still open: an explicit gap between splits, and the same
-  guarantee for `SourceDataRandomSequenceDataset`.
+Order within this PR (decided 2026-11-13): first @sidekock's review comments (quick fixes 10.2,
+architecture fixes 10.3, and his other inline threads), then @gdepaepe's multi-stage training
+config (10.4), which stays in this PR. Config reorganisation (10.5) and dataset rework (10.6) come
+after.
+
+### 10.2 Quick fixes (one commit per review thread)
+- [x] `README.md:171`: add the missing `mlcast train \` (`2d9cc61`).
+- [x] Rename `docs/generate_base_experiment_config_diagram.py` to
+  `generate_convgru_config_diagram.py` (`64dfe53`).
+- [x] `config/base.py:1`: "radar nowcasting" → "nowcasting" (`c054f7b`).
+- [x] `data/reconstruction.py:1`: module docstring aligned with `forecasting.py` (`0daa864`).
+- [x] `data/reconstruction.py:15`: drop "stage-1" wording (`c0385f8`).
+- [x] `data/datamodules.py:63`: `_wrap_sequence_dataset` is an `@abstractmethod` (`c16cc9c`).
+- [x] `models/diffusion/denoiser.py:228`: warn once on context/noisy time-length mismatch
+  (`8f2b80e`).
+- [x] `modules/forecasting.py:234`: `OutputSpaceForecastingTaskModule` →
+  `ObservationSpaceForecastingTaskModule` (`9bcb07f`).
+- [x] `modules/forecasting.py:422`: `LatentDiffusionTaskModule` → `LatentSpaceForecastingTaskModule`
+  (`31dfd7e`).
+- [ ] `data/reconstruction.py:43` (require `input_steps == sequence_steps`): no code change.
+  Reply that the dataset returns every overlapping window rather than only the first, and the
+  latent diffusion config relies on `input_steps < sequence_steps` (4-step reconstruction
+  windows from 16-step sequences). Revisit with the dataset rework (10.6).
+
+### 10.3 Step 1a: review fixes to the latent architecture classes
+- [ ] `models/diffusion/denoiser.py:11`: `TimestepEmbedding` → `DiffusionStepEmbedding`
+  (docstring notes the usual "timestep embedding" name).
+- [ ] `models/diffusion/net.py:43`: check whether the `conditioner`/`denoiser`/`scheduler`
+  attributes are used; remove or explain.
+- [ ] `models/diffusion/net.py:22`, `denoiser.py:55`: `BaseDenoiser` ABC so `DenoiserUNet` is one
+  implementation (open: the `.forward()` signature; @sidekock was asked and has not answered).
+- `models/autoencoder/net.py:65` (VAE mean/logvar split, KL term): decided 2026-11-13, not in
+  this PR. VAE support comes in the step 3 follow-up, as one implementation of the generalised
+  latent representation ABC. Reply on the thread only.
+
+### 10.4 Step 1b: multi-stage experiment config
+- [ ] `MultiStageExperiment` base (@gdepaepe's proposal, #issuecomment-6720565295);
+  `LatentDiffusionTrainingExperiment(MultiStageExperiment)` with named stages
+  (`autoencoder_stage`, `diffusion_stage` instead of `stage1`/`stage2`). Addresses
+  `convgru.py:1` and `latent_diffusion.py:150`.
+- [ ] Drop the stage-1-only `trainer` property (`latent_diffusion.py:47`).
+- [ ] Consistency checks loop over stages instead of one function per experiment type
+  (`consistency_checks.py:121`).
+- [ ] Fiddlers work per stage: `toggle_masking` must not touch the reconstruction stage
+  (`fiddlers.py:158`); the channel fiddler also sets output channels (`fiddlers.py:138`).
+- [ ] Open: is running a single stage from the CLI (`--stages ...`) part of this step, or of
+  step 2 together with checkpoints?
+
+### 10.5 Step 1c: config reorganisation
+- [ ] ConvGRU subpackage holding its config, consistency checks and fiddlers; a latent diffusion
+  subpackage alongside it (@sidekock step 1, @gdepaepe #issuecomment-6720852806).
+- [ ] Open: where shared code goes (`Experiment`, `MultiStageExperiment`, orchestrator, YAML
+  loader, generic fiddlers), given @gdepaepe's wish to keep config directories config-only.
+- [ ] Update imports, `config:<name>` CLI names, the diagram scripts and pre-commit hooks,
+  README, CHANGELOG/UPGRADING.
+
+### 10.6 Step 1d: dataset rework
+@sidekock 2026-11-13 (#issuecomment-6850081832): one dataset base class that fixes the data
+split, with subclasses returning either a single sequence (representation learning) or a
+`(past, future)` pair (forecasting).
+- [ ] Design: today `_BaseDataModule` computes the split and passes a time subset to the
+  sequence dataset factory; `SourceDataSequenceDatasetBase` subclasses return sequences;
+  `ForecastingDataset`/`ReconstructionDataset` wrap them. Decide where the split lives and
+  whether the wrappers become subclasses.
+- [ ] Leakage: the merge (#17) keeps indexed samples inside their split; add an explicit gap
+  between splits and the same guarantee for `SourceDataRandomSequenceDataset`
+  (`latent_diffusion.py:89`, `datamodules.py:1`).
+
+### 10.7 Follow-up PRs (steps 2–5)
+- Step 2: eval and validate/test/predict CLI using checkpoints; port `resume_training` from
+  `dmidk/dev/dmi-convgru-training`.
+- Step 3: `LatentEncoderDecoder` ABC with `BaseEncoder`/`BaseDecoder`; rename `autoencoder` →
+  `latent_encoder_decoder` (@matschreiner). VAE support as one implementation of that ABC
+  (`autoencoder/net.py:65`); its KL term needs the step 4 loss.
+- Step 4: multi-part loss in the loss base class (@gdepaepe #issuecomment-6721980147).
+- Step 5: one general experiment setup for ConvGRU and latent diffusion.
+
+### 10.8 Replies only (no code in this PR)
+- [ ] `modules/forecasting.py:587`: noise/timestep sampling is in the training step since `31805be`.
+- [ ] `data/forecasting.py:102`: the merged mask is valid only where every input and target step
+  is finite, so scores are restricted to the radar domain.
 - [ ] Seeding: `deterministic` default vs global `seed_everything` (`sequence.py:110,401`).
-- [ ] Document fixed-constant normalisation (`sequence.py:382`, ask @franchg).
-- [ ] Separate config from logic in the package layout (@gdepaepe).
-- [ ] Multiple loss functions (@gdepaepe), ties into VAE.
+- [ ] Fixed-constant normalisation (`sequence.py:382`, ask @franchg); document it.
 - [ ] Latent-space task module reusable beyond diffusion (@martinbo-meteo).
 - [ ] HF `diffusers` for architectures and pretrained models.
 
-### 10.5 Wrap-up
+### 10.9 Wrap-up
 - [ ] CHANGELOG entry, push, reply to and resolve threads, re-request review from @sidekock.
