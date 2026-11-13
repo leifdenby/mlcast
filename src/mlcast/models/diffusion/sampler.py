@@ -23,22 +23,22 @@ class DiffusionSampler:
     @jaxtyped(typechecker=beartype)
     def sample(
         self,
-        input_latents: Float[torch.Tensor, "batch latent_channels input_time height width"],
+        input_latents: Float[torch.Tensor, "batch latent_channels input_steps height width"],
         output_shape: tuple[int, int, int, int, int],
-    ) -> Float[torch.Tensor, "batch latent_channels forecast_time height width"]:
+    ) -> Float[torch.Tensor, "batch latent_channels forecast_steps height width"]:
         """Sample forecast latents conditioned on input latents.
 
         Parameters
         ----------
-        input_latents : Float[torch.Tensor, "batch latent_channels input_time height width"]
+        input_latents : Float[torch.Tensor, "batch latent_channels input_steps height width"]
             Encoded input-history latents.
         output_shape : tuple of int
             Shape of the forecast latent to sample, ordered as
-            ``(batch, channels, forecast_time, height, width)``.
+            ``(batch, channels, forecast_steps, height, width)``.
 
         Returns
         -------
-        Float[torch.Tensor, "batch latent_channels forecast_time height width"]
+        Float[torch.Tensor, "batch latent_channels forecast_steps height width"]
             Sampled forecast latent.
         """
         x = torch.randn(output_shape, device=input_latents.device, dtype=input_latents.dtype)

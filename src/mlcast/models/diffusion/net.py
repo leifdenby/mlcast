@@ -17,24 +17,24 @@ class LatentDiffusionNet(nn.Module):
     ----------
     conditioner : ConditionerNet
         Network that builds context from input-history latents. It must accept
-        ``Float[Tensor, "batch latent_channels input_time height width"]`` and
-        return ``Float[Tensor, "batch condition_channels input_time height width"]``.
+        ``Float[Tensor, "batch latent_channels input_steps height width"]`` and
+        return ``Float[Tensor, "batch condition_channels input_steps height width"]``.
     denoiser : DenoiserUNet
         Network that predicts noise from noised target latents. It must accept
         ``noisy`` with shape
-        ``Float[Tensor, "batch latent_channels forecast_time height width"]``,
+        ``Float[Tensor, "batch latent_channels forecast_steps height width"]``,
         ``diffusion_step_index`` with shape ``Int[Tensor, "batch"]``, and
         ``context`` with shape
-        ``Float[Tensor, "batch condition_channels input_time height width"]``;
+        ``Float[Tensor, "batch condition_channels input_steps height width"]``;
         it must return
-        ``Float[Tensor, "batch latent_channels forecast_time height width"]``.
+        ``Float[Tensor, "batch latent_channels forecast_steps height width"]``.
     scheduler : DiffusionScheduler
         Diffusion noise scheduler. Calling ``scheduler.buffers(device, dtype)``
         must return one-dimensional tensors of length
         ``scheduler.n_diffusion_steps`` for ``sqrt_alphas_cumprod`` and
         ``sqrt_one_minus_alphas_cumprod`` so they can be gathered with
         diffusion step indices shaped ``(batch,)`` and broadcast over latent
-        tensors shaped ``(batch, latent_channels, forecast_time, height, width)``.
+        tensors shaped ``(batch, latent_channels, forecast_steps, height, width)``.
     """
 
     def __init__(self, conditioner: ConditionerNet, denoiser: DenoiserUNet, scheduler: DiffusionScheduler) -> None:
@@ -83,24 +83,24 @@ class LatentDiffusionNet(nn.Module):
     @jaxtyped(typechecker=beartype)
     def forward(
         self,
-        noised_target: Float[torch.Tensor, "batch latent_channels forecast_time height width"],
+        noised_target: Float[torch.Tensor, "batch latent_channels forecast_steps height width"],
         diffusion_step_index: Int[torch.Tensor, " batch"],
-        input_latents: Float[torch.Tensor, "batch latent_channels input_time height width"],
-    ) -> Float[torch.Tensor, "batch latent_channels forecast_time height width"]:
+        input_latents: Float[torch.Tensor, "batch latent_channels input_steps height width"],
+    ) -> Float[torch.Tensor, "batch latent_channels forecast_steps height width"]:
         """Predict noise from a noised target latent and input context.
 
         Parameters
         ----------
-        noised_target : Float[torch.Tensor, "batch latent_channels forecast_time height width"]
+        noised_target : Float[torch.Tensor, "batch latent_channels forecast_steps height width"]
             Noised target latent.
         diffusion_step_index : Int[torch.Tensor, "batch"]
             Index into the diffusion schedule for each sample.
-        input_latents : Float[torch.Tensor, "batch latent_channels input_time height width"]
+        input_latents : Float[torch.Tensor, "batch latent_channels input_steps height width"]
             Encoded input-history latents.
 
         Returns
         -------
-        Float[torch.Tensor, "batch latent_channels forecast_time height width"]
+        Float[torch.Tensor, "batch latent_channels forecast_steps height width"]
             Predicted noise.
         """
         context = self.conditioner(input_latents)

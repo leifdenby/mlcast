@@ -224,24 +224,24 @@ class DenoiserUNet(nn.Module):
     @jaxtyped(typechecker=beartype)
     def forward(
         self,
-        noisy: Float[torch.Tensor, "batch latent_channels forecast_time height width"],
+        noisy: Float[torch.Tensor, "batch latent_channels forecast_steps height width"],
         diffusion_step_index: Int[torch.Tensor, " batch"],
-        context: Float[torch.Tensor, "batch condition_channels input_time height width"],
-    ) -> Float[torch.Tensor, "batch latent_channels forecast_time height width"]:
+        context: Float[torch.Tensor, "batch condition_channels input_steps height width"],
+    ) -> Float[torch.Tensor, "batch latent_channels forecast_steps height width"]:
         """Predict noise in a noised latent target.
 
         Parameters
         ----------
-        noisy : Float[torch.Tensor, "batch latent_channels forecast_time height width"]
+        noisy : Float[torch.Tensor, "batch latent_channels forecast_steps height width"]
             Noised target latent.
         diffusion_step_index : Int[torch.Tensor, "batch"]
             Index into the diffusion schedule for each sample.
-        context : Float[torch.Tensor, "batch condition_channels input_time height width"]
+        context : Float[torch.Tensor, "batch condition_channels input_steps height width"]
             Conditioning context from the input-history latent.
 
         Returns
         -------
-        Float[torch.Tensor, "batch latent_channels forecast_time height width"]
+        Float[torch.Tensor, "batch latent_channels forecast_steps height width"]
             Predicted noise tensor.
         """
         if context.shape[2] != noisy.shape[2]:

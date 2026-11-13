@@ -69,18 +69,18 @@ class ConditionerNet(nn.Module):
 
     @jaxtyped(typechecker=beartype)
     def forward(
-        self, z: Float[torch.Tensor, "batch latent_channels input_time height width"]
-    ) -> Float[torch.Tensor, "batch hidden_channels input_time height width"]:
+        self, z: Float[torch.Tensor, "batch latent_channels input_steps height width"]
+    ) -> Float[torch.Tensor, "batch hidden_channels input_steps height width"]:
         """Build conditioning context from input-history latents.
 
         Parameters
         ----------
-        z : Float[torch.Tensor, "batch latent_channels input_time height width"]
+        z : Float[torch.Tensor, "batch latent_channels input_steps height width"]
             Encoded input-history latent tensor.
 
         Returns
         -------
-        Float[torch.Tensor, "batch hidden_channels input_time height width"]
+        Float[torch.Tensor, "batch hidden_channels input_steps height width"]
             Conditioning context for the denoiser.
         """
         return self.blocks(self.input_projection(z))
