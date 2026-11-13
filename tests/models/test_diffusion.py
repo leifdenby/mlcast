@@ -1,4 +1,5 @@
 import torch
+from loguru import logger
 
 from mlcast.models.diffusion import (
     ConditionerNet,
@@ -36,6 +37,26 @@ def test_latent_diffusion_net_api() -> None:
         predicted_noise = diffusion_net(noised_target, timesteps, input_latents)
 
     assert predicted_noise.shape == noised_target.shape
+
+
+def test_denoiser_warns_once_when_context_time_differs() -> None:
+    """DenoiserUNet should warn (once) when it resizes a context with a different time length."""
+    denoiser = DenoiserUNet(latent_channels=1, condition_channels=4, hidden_channels=4, num_blocks=1)
+    noisy = torch.randn(1, 1, 3, 4, 4)
+    context = torch.randn(1, 4, 2, 4, 4)
+    timesteps = torch.zeros(1, dtype=torch.long)
+
+    messages: list[str] = []
+    handler_id = logger.add(messages.append, level="WARNING", format="{message}")
+    try:
+        with torch.no_grad():
+            denoiser(noisy, timesteps, context)
+            denoiser(noisy, timesteps, context)
+    finally:
+        logger.remove(handler_id)
+
+    resize_warnings = [m for m in messages if "conditioning context has 2 time steps" in m]
+    assert len(resize_warnings) == 1
 
 
 def test_diffusion_model_improves_loss_on_generated_latents() -> None:

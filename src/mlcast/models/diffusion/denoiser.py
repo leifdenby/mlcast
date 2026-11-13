@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 from beartype import beartype
 from jaxtyping import Float, jaxtyped
+from loguru import logger
 
 
 class TimestepEmbedding(nn.Module):
@@ -201,6 +202,7 @@ class DenoiserUNet(nn.Module):
             _DenoiserBlock(hidden_channels * 2, hidden_channels, hidden_channels) for _ in range(num_blocks - 1)
         )
         self.output_projection = nn.Conv3d(hidden_channels, latent_channels, kernel_size=1)
+        self._warned_context_resize = False
 
     @jaxtyped(typechecker=beartype)
     def forward(
@@ -226,6 +228,16 @@ class DenoiserUNet(nn.Module):
             Predicted noise tensor.
         """
         if context.shape[2] != noisy.shape[2]:
+            # Warn once per instance rather than on every denoising step.
+            if not self._warned_context_resize:
+                logger.warning(
+                    "DenoiserUNet: conditioning context has {} time steps but the noisy target has {}; "
+                    "resizing the context to {} with nearest-neighbour interpolation.",
+                    context.shape[2],
+                    noisy.shape[2],
+                    tuple(noisy.shape[2:]),
+                )
+                self._warned_context_resize = True
             context = torch.nn.functional.interpolate(context, size=noisy.shape[2:], mode="nearest")
 
         x = self.input_projection(torch.cat([noisy, context], dim=1))
