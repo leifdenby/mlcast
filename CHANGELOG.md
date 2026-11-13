@@ -14,7 +14,7 @@ base config on the CLI. It has breaking changes; see [UPGRADING.md](UPGRADING.md
 
 - Latent diffusion: an autoencoder (`AutoencoderNet`, `Encoder`, `Decoder`), latent diffusion components
   (`LatentDiffusionNet`, `DenoiserUNet`, `ConditionerNet`, `DiffusionScheduler`, `DiffusionSampler`,
-  `ExponentialMovingAverage`), the task modules `ReconstructionTaskModule` and `LatentDiffusionTaskModule`, and
+  `ExponentialMovingAverage`), the task modules `ReconstructionTaskModule` and `LatentSpaceForecastingTaskModule`, and
   the two-stage `latent_diffusion_experiment` config.
   [\#16](https://github.com/mlcast-community/mlcast/pull/16), @leifdenby
 

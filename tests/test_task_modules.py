@@ -3,7 +3,7 @@ import torch
 
 from mlcast.models.autoencoder import AutoencoderNet, Decoder, Encoder
 from mlcast.models.diffusion import ConditionerNet, DenoiserUNet, DiffusionScheduler, LatentDiffusionNet
-from mlcast.modules.forecasting import LatentDiffusionTaskModule, ObservationSpaceForecastingTaskModule
+from mlcast.modules.forecasting import LatentSpaceForecastingTaskModule, ObservationSpaceForecastingTaskModule
 from mlcast.modules.reconstruction import ReconstructionTaskModule
 
 
@@ -56,9 +56,9 @@ def _build_diffusion_net() -> LatentDiffusionNet:
     return LatentDiffusionNet(conditioner=conditioner, denoiser=denoiser, scheduler=scheduler)
 
 
-def test_latent_diffusion_module_training_step_runs() -> None:
-    """LatentDiffusionTaskModule should encode forecasting batches and return scalar loss."""
-    module = LatentDiffusionTaskModule(
+def test_latent_space_forecasting_module_training_step_runs() -> None:
+    """LatentSpaceForecastingTaskModule should encode forecasting batches and return scalar loss."""
+    module = LatentSpaceForecastingTaskModule(
         autoencoder=_build_autoencoder(), diffusion_net=_build_diffusion_net(), forecast_steps=3
     )
     batch = {
@@ -72,19 +72,19 @@ def test_latent_diffusion_module_training_step_runs() -> None:
     assert loss.ndim == 0
 
 
-def test_latent_diffusion_task_module_trainable_parameters_exclude_autoencoder() -> None:
-    """LatentDiffusionTaskModule should optimize only diffusion-net parameters."""
+def test_latent_space_forecasting_task_module_trainable_parameters_exclude_autoencoder() -> None:
+    """LatentSpaceForecastingTaskModule should optimize only diffusion-net parameters."""
     autoencoder = _build_autoencoder()
     diffusion_net = _build_diffusion_net()
-    module = LatentDiffusionTaskModule(autoencoder=autoencoder, diffusion_net=diffusion_net, forecast_steps=3)
+    module = LatentSpaceForecastingTaskModule(autoencoder=autoencoder, diffusion_net=diffusion_net, forecast_steps=3)
 
     assert module.trainable_parameters == list(diffusion_net.parameters())
     assert module.trainable_parameters != list(autoencoder.parameters())
 
 
-def test_latent_diffusion_module_predict_uses_configured_output_shape() -> None:
-    """LatentDiffusionTaskModule prediction should decode configured ensemble forecasts."""
-    module = LatentDiffusionTaskModule(
+def test_latent_space_forecasting_module_predict_uses_configured_output_shape() -> None:
+    """LatentSpaceForecastingTaskModule prediction should decode configured ensemble forecasts."""
+    module = LatentSpaceForecastingTaskModule(
         autoencoder=_build_autoencoder(),
         diffusion_net=_build_diffusion_net(),
         forecast_steps=3,

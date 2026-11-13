@@ -14,7 +14,7 @@ from mlcast.data.sequence import SourceDataIndexedSequenceDataset
 from mlcast.data.source_data.sampling import ImportanceSelector, UniformSelector
 from mlcast.models.autoencoder import AutoencoderNet, Decoder, Encoder
 from mlcast.models.diffusion import ConditionerNet, DenoiserUNet, DiffusionScheduler, LatentDiffusionNet
-from mlcast.modules.forecasting import LatentDiffusionTaskModule
+from mlcast.modules.forecasting import LatentSpaceForecastingTaskModule
 from mlcast.modules.reconstruction import ReconstructionTaskModule
 
 from ..base import Experiment
@@ -129,7 +129,7 @@ def latent_diffusion_experiment() -> LatentDiffusionTrainingExperiment:
         denoiser=DenoiserUNet(latent_channels=32, condition_channels=32, hidden_channels=32, num_blocks=2),
         scheduler=DiffusionScheduler(timesteps=1000),
     )
-    stage2_module = LatentDiffusionTaskModule(
+    stage2_module = LatentSpaceForecastingTaskModule(
         autoencoder=autoencoder,
         diffusion_net=diffusion_net,
         forecast_steps=forecast_steps,

@@ -419,7 +419,7 @@ class ObservationSpaceForecastingTaskModule(BaseForecastingTaskModule):
         )
 
 
-class LatentDiffusionTaskModule(BaseForecastingTaskModule):
+class LatentSpaceForecastingTaskModule(BaseForecastingTaskModule):
     """Lightning task module for latent diffusion forecasting.
 
     Purpose

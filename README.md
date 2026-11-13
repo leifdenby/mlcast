@@ -594,7 +594,7 @@ orchestrates both stages:
   `ReconstructionTaskModule`, then calls `trainer.fit() + trainer.test()`.
 - Stage 2 reuses the **same trained autoencoder instance** (Fiddle graph
   identity sharing), builds a `ForecastingDataModule` and
-  `LatentDiffusionTaskModule`, then calls `trainer.fit() + trainer.test()`.
+  `LatentSpaceForecastingTaskModule`, then calls `trainer.fit() + trainer.test()`.
 - The stage-2 module freezes the autoencoder on `fit_start` and optimises only
   the diffusion-network parameters.
 

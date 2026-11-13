@@ -243,7 +243,7 @@
 <!-- 1&#45;&#45;2 -->
 <g id="edge7" class="edge">
 <title>1:c&#45;&#45;2:c</title>
-<path fill="none" stroke="#cbc6b0" stroke-width="3" stroke-opacity="0.501961" d="M1388.03,-752.18C1299.83,-748.43 699.32,-721.16 528,-665.75 450.31,-640.62 370.64,-591.66 316.25,-553.99"/>
+<path fill="none" stroke="#cbc6b0" stroke-width="3" stroke-opacity="0.501961" d="M1388.17,-752.3C1298.59,-749.49 672.41,-727.79 496,-665.75 425.33,-640.9 354.88,-591.76 307.23,-553.97"/>
 </g>
 <!-- 9 -->
 <g id="node10" class="node">
@@ -619,54 +619,54 @@
 <!-- 19 -->
 <g id="node19" class="node">
 <title>19</title>
-<polygon fill="#ff8c00" stroke="none" points="537.25,-564.38 537.25,-585.12 732.75,-585.12 732.75,-564.38 537.25,-564.38"/>
-<polygon fill="none" stroke="black" points="537.25,-564.38 537.25,-585.12 732.75,-585.12 732.75,-564.38 537.25,-564.38"/>
-<text text-anchor="start" x="541.25" y="-572.62" font-family="Courier,monospace" font-size="8.00">Config:</text>
-<text text-anchor="start" x="572.75" y="-572.62" font-family="Courier,monospace" font-size="10.00"> LatentDiffusionTaskModule</text>
-<polygon fill="#eeeeee" stroke="none" points="537.25,-543.62 537.25,-564.38 659,-564.38 659,-543.62 537.25,-543.62"/>
-<polygon fill="none" stroke="black" points="537.25,-543.62 537.25,-564.38 659,-564.38 659,-543.62 537.25,-543.62"/>
-<text text-anchor="start" x="589" y="-550.88" font-family="Courier,monospace" font-size="10.00">autoencoder</text>
-<polygon fill="none" stroke="black" points="659,-543.62 659,-564.38 732.75,-564.38 732.75,-543.62 659,-543.62"/>
-<polygon fill="#ffa07a" stroke="none" points="663,-547.62 663,-560.38 728.75,-560.38 728.75,-547.62 663,-547.62"/>
-<polygon fill="none" stroke="black" points="663,-547.62 663,-560.38 728.75,-560.38 728.75,-547.62 663,-547.62"/>
-<polygon fill="#eeeeee" stroke="none" points="537.25,-522.88 537.25,-543.62 659,-543.62 659,-522.88 537.25,-522.88"/>
-<polygon fill="none" stroke="black" points="537.25,-522.88 537.25,-543.62 659,-543.62 659,-522.88 537.25,-522.88"/>
-<text text-anchor="start" x="577" y="-530.12" font-family="Courier,monospace" font-size="10.00">diffusion_net</text>
-<polygon fill="none" stroke="black" points="659,-522.88 659,-543.62 732.75,-543.62 732.75,-522.88 659,-522.88"/>
-<polygon fill="#8fbc8f" stroke="none" points="663,-526.88 663,-539.62 728.75,-539.62 728.75,-526.88 663,-526.88"/>
-<polygon fill="none" stroke="black" points="663,-526.88 663,-539.62 728.75,-539.62 728.75,-526.88 663,-526.88"/>
-<polygon fill="#eeeeee" stroke="none" points="537.25,-502.12 537.25,-522.88 659,-522.88 659,-502.12 537.25,-502.12"/>
-<polygon fill="none" stroke="black" points="537.25,-502.12 537.25,-522.88 659,-522.88 659,-502.12 537.25,-502.12"/>
-<text text-anchor="start" x="571" y="-509.38" font-family="Courier,monospace" font-size="10.00">forecast_steps</text>
-<polygon fill="none" stroke="black" points="659,-502.12 659,-522.88 732.75,-522.88 732.75,-502.12 659,-502.12"/>
-<text text-anchor="start" x="663" y="-509.38" font-family="Courier,monospace" font-size="10.00">12</text>
-<polygon fill="#eeeeee" stroke="none" points="537.25,-481.38 537.25,-502.12 659,-502.12 659,-481.38 537.25,-481.38"/>
-<polygon fill="none" stroke="black" points="537.25,-481.38 537.25,-502.12 659,-502.12 659,-481.38 537.25,-481.38"/>
-<text text-anchor="start" x="577" y="-488.62" font-family="Courier,monospace" font-size="10.00">ensemble_size</text>
-<polygon fill="none" stroke="black" points="659,-481.38 659,-502.12 732.75,-502.12 732.75,-481.38 659,-481.38"/>
-<text text-anchor="start" x="663" y="-488.62" font-family="Courier,monospace" font-size="10.00">2</text>
-<polygon fill="#eeeeee" stroke="none" points="537.25,-460.62 537.25,-481.38 659,-481.38 659,-460.62 537.25,-460.62"/>
-<polygon fill="none" stroke="black" points="537.25,-460.62 537.25,-481.38 659,-481.38 659,-460.62 537.25,-460.62"/>
-<text text-anchor="start" x="601" y="-467.88" font-family="Courier,monospace" font-size="10.00">optimizer</text>
-<polygon fill="none" stroke="black" points="659,-460.62 659,-481.38 732.75,-481.38 732.75,-460.62 659,-460.62"/>
-<polygon fill="#f0e68c" stroke="none" points="663,-464.62 663,-477.38 728.75,-477.38 728.75,-464.62 663,-464.62"/>
-<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="663,-464.62 663,-477.38 728.75,-477.38 728.75,-464.62 663,-464.62"/>
-<polygon fill="#eeeeee" stroke="none" stroke-dasharray="5,2" points="537.25,-439.88 537.25,-460.62 659,-460.62 659,-439.88 537.25,-439.88"/>
-<polygon fill="none" stroke="black" points="537.25,-439.88 537.25,-460.62 659,-460.62 659,-439.88 537.25,-439.88"/>
-<text text-anchor="start" x="583" y="-447.12" font-family="Courier,monospace" font-size="10.00">lr_scheduler</text>
-<polygon fill="none" stroke="black" points="659,-439.88 659,-460.62 732.75,-460.62 732.75,-439.88 659,-439.88"/>
-<polygon fill="#32cd32" stroke="none" points="663,-443.88 663,-456.62 728.75,-456.62 728.75,-443.88 663,-443.88"/>
-<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="663,-443.88 663,-456.62 728.75,-456.62 728.75,-443.88 663,-443.88"/>
-<polygon fill="#eeeeee" stroke="none" stroke-dasharray="5,2" points="537.25,-419.12 537.25,-439.88 659,-439.88 659,-419.12 537.25,-419.12"/>
-<polygon fill="none" stroke="black" points="537.25,-419.12 537.25,-439.88 659,-439.88 659,-419.12 537.25,-419.12"/>
-<text text-anchor="start" x="601" y="-426.38" font-family="Courier,monospace" font-size="10.00">ema_decay</text>
-<polygon fill="none" stroke="black" points="659,-419.12 659,-439.88 732.75,-439.88 732.75,-419.12 659,-419.12"/>
-<text text-anchor="start" x="663" y="-426.38" font-family="Courier,monospace" font-size="10.00">0.9999</text>
+<polygon fill="#ff8c00" stroke="none" points="505.25,-564.38 505.25,-585.12 742.75,-585.12 742.75,-564.38 505.25,-564.38"/>
+<polygon fill="none" stroke="black" points="505.25,-564.38 505.25,-585.12 742.75,-585.12 742.75,-564.38 505.25,-564.38"/>
+<text text-anchor="start" x="509.25" y="-572.62" font-family="Courier,monospace" font-size="8.00">Config:</text>
+<text text-anchor="start" x="540.75" y="-572.62" font-family="Courier,monospace" font-size="10.00"> LatentSpaceForecastingTaskModule</text>
+<polygon fill="#eeeeee" stroke="none" points="505.25,-543.62 505.25,-564.38 648,-564.38 648,-543.62 505.25,-543.62"/>
+<polygon fill="none" stroke="black" points="505.25,-543.62 505.25,-564.38 648,-564.38 648,-543.62 505.25,-543.62"/>
+<text text-anchor="start" x="578" y="-550.88" font-family="Courier,monospace" font-size="10.00">autoencoder</text>
+<polygon fill="none" stroke="black" points="648,-543.62 648,-564.38 742.75,-564.38 742.75,-543.62 648,-543.62"/>
+<polygon fill="#ffa07a" stroke="none" points="652,-547.62 652,-560.38 738.75,-560.38 738.75,-547.62 652,-547.62"/>
+<polygon fill="none" stroke="black" points="652,-547.62 652,-560.38 738.75,-560.38 738.75,-547.62 652,-547.62"/>
+<polygon fill="#eeeeee" stroke="none" points="505.25,-522.88 505.25,-543.62 648,-543.62 648,-522.88 505.25,-522.88"/>
+<polygon fill="none" stroke="black" points="505.25,-522.88 505.25,-543.62 648,-543.62 648,-522.88 505.25,-522.88"/>
+<text text-anchor="start" x="566" y="-530.12" font-family="Courier,monospace" font-size="10.00">diffusion_net</text>
+<polygon fill="none" stroke="black" points="648,-522.88 648,-543.62 742.75,-543.62 742.75,-522.88 648,-522.88"/>
+<polygon fill="#8fbc8f" stroke="none" points="652,-526.88 652,-539.62 738.75,-539.62 738.75,-526.88 652,-526.88"/>
+<polygon fill="none" stroke="black" points="652,-526.88 652,-539.62 738.75,-539.62 738.75,-526.88 652,-526.88"/>
+<polygon fill="#eeeeee" stroke="none" points="505.25,-502.12 505.25,-522.88 648,-522.88 648,-502.12 505.25,-502.12"/>
+<polygon fill="none" stroke="black" points="505.25,-502.12 505.25,-522.88 648,-522.88 648,-502.12 505.25,-502.12"/>
+<text text-anchor="start" x="560" y="-509.38" font-family="Courier,monospace" font-size="10.00">forecast_steps</text>
+<polygon fill="none" stroke="black" points="648,-502.12 648,-522.88 742.75,-522.88 742.75,-502.12 648,-502.12"/>
+<text text-anchor="start" x="652" y="-509.38" font-family="Courier,monospace" font-size="10.00">12</text>
+<polygon fill="#eeeeee" stroke="none" points="505.25,-481.38 505.25,-502.12 648,-502.12 648,-481.38 505.25,-481.38"/>
+<polygon fill="none" stroke="black" points="505.25,-481.38 505.25,-502.12 648,-502.12 648,-481.38 505.25,-481.38"/>
+<text text-anchor="start" x="566" y="-488.62" font-family="Courier,monospace" font-size="10.00">ensemble_size</text>
+<polygon fill="none" stroke="black" points="648,-481.38 648,-502.12 742.75,-502.12 742.75,-481.38 648,-481.38"/>
+<text text-anchor="start" x="652" y="-488.62" font-family="Courier,monospace" font-size="10.00">2</text>
+<polygon fill="#eeeeee" stroke="none" points="505.25,-460.62 505.25,-481.38 648,-481.38 648,-460.62 505.25,-460.62"/>
+<polygon fill="none" stroke="black" points="505.25,-460.62 505.25,-481.38 648,-481.38 648,-460.62 505.25,-460.62"/>
+<text text-anchor="start" x="590" y="-467.88" font-family="Courier,monospace" font-size="10.00">optimizer</text>
+<polygon fill="none" stroke="black" points="648,-460.62 648,-481.38 742.75,-481.38 742.75,-460.62 648,-460.62"/>
+<polygon fill="#f0e68c" stroke="none" points="652,-464.62 652,-477.38 738.75,-477.38 738.75,-464.62 652,-464.62"/>
+<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="652,-464.62 652,-477.38 738.75,-477.38 738.75,-464.62 652,-464.62"/>
+<polygon fill="#eeeeee" stroke="none" stroke-dasharray="5,2" points="505.25,-439.88 505.25,-460.62 648,-460.62 648,-439.88 505.25,-439.88"/>
+<polygon fill="none" stroke="black" points="505.25,-439.88 505.25,-460.62 648,-460.62 648,-439.88 505.25,-439.88"/>
+<text text-anchor="start" x="572" y="-447.12" font-family="Courier,monospace" font-size="10.00">lr_scheduler</text>
+<polygon fill="none" stroke="black" points="648,-439.88 648,-460.62 742.75,-460.62 742.75,-439.88 648,-439.88"/>
+<polygon fill="#32cd32" stroke="none" points="652,-443.88 652,-456.62 738.75,-456.62 738.75,-443.88 652,-443.88"/>
+<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="652,-443.88 652,-456.62 738.75,-456.62 738.75,-443.88 652,-443.88"/>
+<polygon fill="#eeeeee" stroke="none" stroke-dasharray="5,2" points="505.25,-419.12 505.25,-439.88 648,-439.88 648,-419.12 505.25,-419.12"/>
+<polygon fill="none" stroke="black" points="505.25,-419.12 505.25,-439.88 648,-439.88 648,-419.12 505.25,-419.12"/>
+<text text-anchor="start" x="590" y="-426.38" font-family="Courier,monospace" font-size="10.00">ema_decay</text>
+<polygon fill="none" stroke="black" points="648,-419.12 648,-439.88 742.75,-439.88 742.75,-419.12 648,-419.12"/>
+<text text-anchor="start" x="652" y="-426.38" font-family="Courier,monospace" font-size="10.00">0.9999</text>
 </g>
 <!-- 19&#45;&#45;3 -->
 <g id="edge18" class="edge">
 <title>19:c&#45;&#45;3:c</title>
-<path fill="none" stroke="#cb8061" stroke-width="3" stroke-opacity="0.501961" d="M689.8,-547.96C657.46,-521.4 501.45,-396.81 352,-338.5 271.53,-307.1 236.54,-344.41 161,-302.5 139.11,-290.35 120.12,-269.36 106.86,-251.88"/>
+<path fill="none" stroke="#cb8061" stroke-width="3" stroke-opacity="0.501961" d="M689.31,-547.96C657.02,-521.4 501.28,-396.8 352,-338.5 271.54,-307.07 236.54,-344.41 161,-302.5 139.11,-290.35 120.12,-269.36 106.86,-251.88"/>
 </g>
 <!-- 20 -->
 <g id="node21" class="node">
@@ -697,7 +697,7 @@
 <!-- 19&#45;&#45;20 -->
 <g id="edge22" class="edge">
 <title>19:c&#45;&#45;20:c</title>
-<path fill="none" stroke="#729672" stroke-width="3" stroke-opacity="0.501961" d="M695.86,-527.38C695.78,-497.56 695.33,-338.42 695.11,-262.49"/>
+<path fill="none" stroke="#729672" stroke-width="3" stroke-opacity="0.501961" d="M695.37,-527.38C695.33,-497.56 695.14,-338.42 695.05,-262.49"/>
 </g>
 <!-- 24 -->
 <g id="node24" class="node">
@@ -731,7 +731,7 @@
 <!-- 19&#45;&#45;24 -->
 <g id="edge24" class="edge">
 <title>19:c&#45;&#45;24:c</title>
-<path fill="none" stroke="#bfb770" stroke-width="3" stroke-opacity="0.501961" d="M692.58,-464.82C677.12,-440.56 610.92,-336.61 570.33,-272.88"/>
+<path fill="none" stroke="#bfb770" stroke-width="3" stroke-opacity="0.501961" d="M692.09,-464.82C676.68,-440.56 610.68,-336.61 570.22,-272.88"/>
 </g>
 <!-- 25 -->
 <g id="node25" class="node">
@@ -759,7 +759,7 @@
 <!-- 19&#45;&#45;25 -->
 <g id="edge25" class="edge">
 <title>19:c&#45;&#45;25:c</title>
-<path fill="none" stroke="#28a328" stroke-width="3" stroke-opacity="0.501961" d="M699.75,-444.08C717.6,-420.24 792.93,-319.68 835.81,-262.43"/>
+<path fill="none" stroke="#28a328" stroke-width="3" stroke-opacity="0.501961" d="M699.26,-444.08C717.17,-420.24 792.71,-319.68 835.72,-262.43"/>
 </g>
 <!-- 21 -->
 <g id="node20" class="node">
@@ -848,7 +848,7 @@
 <!-- 18&#45;&#45;19 -->
 <g id="edge26" class="edge">
 <title>18:c&#45;&#45;19:c</title>
-<path fill="none" stroke="#cb6f00" stroke-width="3" stroke-opacity="0.501961" d="M2090.07,-751.87C1987.71,-744.7 1190.33,-688.36 1087,-665.75 961.13,-638.21 822.56,-584.68 732.46,-546.56"/>
+<path fill="none" stroke="#cb6f00" stroke-width="3" stroke-opacity="0.501961" d="M2090.07,-751.87C1987.72,-744.65 1190.42,-687.97 1087,-665.75 966.64,-639.89 834.64,-591.41 742.49,-554.09"/>
 </g>
 <!-- 26 -->
 <g id="node27" class="node">
