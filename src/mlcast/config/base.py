@@ -1,4 +1,4 @@
-"""Base Fiddle experiment definition for radar nowcasting.
+"""Base Fiddle experiment definition for nowcasting.
 
 This module defines the ``Experiment`` dataclass used across all experiment
 configurations.
