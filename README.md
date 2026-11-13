@@ -181,7 +181,7 @@ mlcast train \
     --config set:trainer.max_epochs=50
 
 # Run two-stage latent diffusion training with a shorter diffusion schedule
-
+mlcast train \
     --config config:latent_diffusion_experiment \
     --config set:stage2.pl_module.diffusion_net.scheduler.timesteps=20
 
