@@ -370,7 +370,7 @@ https://github.com/mlcast-community/mlcast/pull/16#issuecomment-6849636037):
 Agreed: **this PR does step 1** (10.3–10.6 below), plus the quick fixes (10.2) and the dataset
 rework from @sidekock's second comment (10.6). Steps 2–5 are follow-up PRs (10.7). "Fix the base
 architecture" means applying the review fixes to the autoencoder and diffusion model classes.
-- [ ] Reply on the PR confirming this sequencing.
+- [x] Reply on the PR confirming this sequencing (#issuecomment-6854129555).
 
 Order within this PR (decided 2026-11-13): first @sidekock's review comments (quick fixes 10.2,
 architecture fixes 10.3, and his other inline threads), then @gdepaepe's multi-stage training
@@ -391,10 +391,8 @@ after.
   `ObservationSpaceForecastingTaskModule` (`9bcb07f`).
 - [x] `modules/forecasting.py:422`: `LatentDiffusionTaskModule` → `LatentSpaceForecastingTaskModule`
   (`31dfd7e`).
-- [ ] `data/reconstruction.py:43` (require `input_steps == sequence_steps`): no code change.
-  Reply that the dataset returns every overlapping window rather than only the first, and the
-  latent diffusion config relies on `input_steps < sequence_steps` (4-step reconstruction
-  windows from 16-step sequences). Revisit with the dataset rework (10.6).
+- `data/reconstruction.py:43` (require `input_steps == sequence_steps`): moved to the dataset
+  rework (10.6), not handled as a quick fix.
 
 ### 10.3 Step 1a: review fixes to the latent architecture classes
 - [ ] `models/diffusion/denoiser.py:11`: `TimestepEmbedding` → `DiffusionStepEmbedding`
@@ -405,7 +403,7 @@ after.
   implementation (open: the `.forward()` signature; @sidekock was asked and has not answered).
 - `models/autoencoder/net.py:65` (VAE mean/logvar split, KL term): decided 2026-11-13, not in
   this PR. VAE support comes in the step 3 follow-up, as one implementation of the generalised
-  latent representation ABC. Reply on the thread only.
+  latent representation ABC. Replied on the thread (#discussion_r4563779373).
 
 ### 10.4 Step 1b: multi-stage experiment config
 - [ ] `MultiStageExperiment` base (@gdepaepe's proposal, #issuecomment-6720565295);
@@ -439,6 +437,10 @@ split, with subclasses returning either a single sequence (representation learni
 - [ ] Leakage: the merge (#17) keeps indexed samples inside their split; add an explicit gap
   between splits and the same guarantee for `SourceDataRandomSequenceDataset`
   (`latent_diffusion.py:89`, `datamodules.py:1`).
+- [ ] `data/reconstruction.py:43`: whether a reconstruction sample should be exactly one
+  sequence (`input_steps == sequence_steps`). Today the dataset returns every overlapping window,
+  and the latent diffusion config uses 4-step windows from 16-step sequences. Settle this in the
+  redesign, then reply on the thread.
 
 ### 10.7 Follow-up PRs (steps 2–5)
 - Step 2: eval and validate/test/predict CLI using checkpoints; port `resume_training` from
