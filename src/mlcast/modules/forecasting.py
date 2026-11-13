@@ -578,15 +578,17 @@ class LatentSpaceForecastingTaskModule(BaseForecastingTaskModule):
             input_latents = self.autoencoder.encode(batch["input"])
             target_latents = self.autoencoder.encode(batch["target"])
 
-        timesteps = torch.randint(
+        diffusion_step_index = torch.randint(
             0,
-            self.diffusion_net.num_timesteps,
+            self.diffusion_net.n_diffusion_steps,
             (target_latents.shape[0],),
             device=target_latents.device,
         )
         noise = torch.randn_like(target_latents)
-        noised_target = self.diffusion_net.q_sample(target_latents, timesteps=timesteps, noise=noise)
-        predicted_noise = self.diffusion_net(noised_target, timesteps, input_latents)
+        noised_target = self.diffusion_net.q_sample(
+            target_latents, diffusion_step_index=diffusion_step_index, noise=noise
+        )
+        predicted_noise = self.diffusion_net(noised_target, diffusion_step_index, input_latents)
         loss = torch.nn.functional.mse_loss(predicted_noise, noise)
         self.log(f"{split}/loss", loss, prog_bar=True, on_epoch=True, on_step=(split == "train"), sync_dist=True)
         return loss

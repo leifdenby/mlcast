@@ -829,11 +829,11 @@
 <polygon fill="none" stroke="black" points="833.25,-51.88 833.25,-72.62 986.75,-72.62 986.75,-51.88 833.25,-51.88"/>
 <text text-anchor="start" x="837.25" y="-60.12" font-family="Courier,monospace" font-size="8.00">Config:</text>
 <text text-anchor="start" x="868.75" y="-60.12" font-family="Courier,monospace" font-size="10.00"> DiffusionScheduler</text>
-<polygon fill="#eeeeee" stroke="none" points="833.25,-31.12 833.25,-51.88 925,-51.88 925,-31.12 833.25,-31.12"/>
-<polygon fill="none" stroke="black" points="833.25,-31.12 833.25,-51.88 925,-51.88 925,-31.12 833.25,-31.12"/>
-<text text-anchor="start" x="867" y="-38.38" font-family="Courier,monospace" font-size="10.00">timesteps</text>
-<polygon fill="none" stroke="black" points="925,-31.12 925,-51.88 986.75,-51.88 986.75,-31.12 925,-31.12"/>
-<text text-anchor="start" x="929" y="-38.38" font-family="Courier,monospace" font-size="10.00">1000</text>
+<polygon fill="#eeeeee" stroke="none" points="833.25,-31.12 833.25,-51.88 949,-51.88 949,-31.12 833.25,-31.12"/>
+<polygon fill="none" stroke="black" points="833.25,-31.12 833.25,-51.88 949,-51.88 949,-31.12 833.25,-31.12"/>
+<text text-anchor="start" x="843" y="-38.38" font-family="Courier,monospace" font-size="10.00">n_diffusion_steps</text>
+<polygon fill="none" stroke="black" points="949,-31.12 949,-51.88 986.75,-51.88 986.75,-31.12 949,-31.12"/>
+<text text-anchor="start" x="953" y="-38.38" font-family="Courier,monospace" font-size="10.00">1000</text>
 </g>
 <!-- 20&#45;&#45;23 -->
 <g id="edge21" class="edge">

@@ -42,17 +42,21 @@ class DiffusionSampler:
             Sampled forecast latent.
         """
         x = torch.randn(output_shape, device=input_latents.device, dtype=input_latents.dtype)
-        for step in reversed(range(self.net.num_timesteps)):
-            timesteps = torch.full((output_shape[0],), step, device=input_latents.device, dtype=torch.long)
-            predicted_noise = self.net(x, timesteps, input_latents)
-            sqrt_alpha = extract_schedule_value(self.net.sqrt_alphas_cumprod, timesteps, x.shape)
-            sqrt_one_minus_alpha = extract_schedule_value(self.net.sqrt_one_minus_alphas_cumprod, timesteps, x.shape)
+        for step in reversed(range(self.net.n_diffusion_steps)):
+            diffusion_step_index = torch.full((output_shape[0],), step, device=input_latents.device, dtype=torch.long)
+            predicted_noise = self.net(x, diffusion_step_index, input_latents)
+            sqrt_alpha = extract_schedule_value(self.net.sqrt_alphas_cumprod, diffusion_step_index, x.shape)
+            sqrt_one_minus_alpha = extract_schedule_value(
+                self.net.sqrt_one_minus_alphas_cumprod, diffusion_step_index, x.shape
+            )
             x0 = (x - sqrt_one_minus_alpha * predicted_noise) / sqrt_alpha.clamp_min(1e-6)
             if step > 0:
-                prev_timesteps = timesteps - 1
-                prev_sqrt_alpha = extract_schedule_value(self.net.sqrt_alphas_cumprod, prev_timesteps, x.shape)
+                prev_diffusion_step_index = diffusion_step_index - 1
+                prev_sqrt_alpha = extract_schedule_value(
+                    self.net.sqrt_alphas_cumprod, prev_diffusion_step_index, x.shape
+                )
                 prev_sqrt_one_minus_alpha = extract_schedule_value(
-                    self.net.sqrt_one_minus_alphas_cumprod, prev_timesteps, x.shape
+                    self.net.sqrt_one_minus_alphas_cumprod, prev_diffusion_step_index, x.shape
                 )
                 x = prev_sqrt_alpha * x0 + prev_sqrt_one_minus_alpha * predicted_noise
             else:

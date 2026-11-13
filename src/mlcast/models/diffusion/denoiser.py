@@ -5,7 +5,7 @@ import math
 import torch
 import torch.nn as nn
 from beartype import beartype
-from jaxtyping import Float, jaxtyped
+from jaxtyping import Float, Int, jaxtyped
 from loguru import logger
 
 
@@ -32,13 +32,13 @@ class DiffusionStepEmbedding(nn.Module):
         )
 
     @jaxtyped(typechecker=beartype)
-    def forward(self, timesteps: torch.Tensor) -> Float[torch.Tensor, "batch embedding_dim"]:
-        """Embed integer diffusion steps.
+    def forward(self, diffusion_step_index: Int[torch.Tensor, " batch"]) -> Float[torch.Tensor, "batch embedding_dim"]:
+        """Embed integer diffusion step indices.
 
         Parameters
         ----------
-        timesteps : torch.Tensor
-            Integer diffusion step for each sample.
+        diffusion_step_index : Int[torch.Tensor, "batch"]
+            Index into the diffusion schedule for each sample.
 
         Returns
         -------
@@ -47,10 +47,10 @@ class DiffusionStepEmbedding(nn.Module):
         """
         half_dim = self.embedding_dim // 2
         frequencies = torch.exp(
-            torch.arange(half_dim, device=timesteps.device, dtype=torch.float32)
+            torch.arange(half_dim, device=diffusion_step_index.device, dtype=torch.float32)
             * -(math.log(10_000.0) / max(half_dim - 1, 1))
         )
-        args = timesteps.float()[:, None] * frequencies[None]
+        args = diffusion_step_index.float()[:, None] * frequencies[None]
         embedding = torch.cat([torch.sin(args), torch.cos(args)], dim=-1)
         if embedding.shape[-1] < self.embedding_dim:
             embedding = torch.nn.functional.pad(embedding, (0, 1))
@@ -83,19 +83,24 @@ class _DenoiserBlock(nn.Module):
         )
         self.skip_connection = nn.Identity() if in_channels == out_channels else nn.Conv3d(in_channels, out_channels, 1)
 
-    def forward(self, x: torch.Tensor, diffusion_step_embedding: torch.Tensor) -> torch.Tensor:
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self,
+        x: Float[torch.Tensor, "batch in_channels time height width"],
+        diffusion_step_embedding: Float[torch.Tensor, "batch embedding_dim"],
+    ) -> Float[torch.Tensor, "batch out_channels time height width"]:
         """Apply diffusion-step-conditioned residual denoising.
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : Float[torch.Tensor, "batch in_channels time height width"]
             Hidden denoising tensor.
-        diffusion_step_embedding : torch.Tensor
+        diffusion_step_embedding : Float[torch.Tensor, "batch embedding_dim"]
             Diffusion step embedding for each batch item.
 
         Returns
         -------
-        torch.Tensor
+        Float[torch.Tensor, "batch out_channels time height width"]
             Updated hidden tensor.
         """
         diffusion_step_bias = self.diffusion_step_projection(diffusion_step_embedding)[:, :, None, None, None]
@@ -110,17 +115,20 @@ class _SpatialDownsample(nn.Module):
         super().__init__()
         self.op = nn.Conv3d(channels, channels, kernel_size=3, stride=(1, 2, 2), padding=1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels time height width"]
+    ) -> Float[torch.Tensor, "batch channels time out_height out_width"]:
         """Downsample the spatial dimensions of a latent tensor.
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : Float[torch.Tensor, "batch channels time height width"]
             Channel-first latent tensor.
 
         Returns
         -------
-        torch.Tensor
+        Float[torch.Tensor, "batch channels time out_height out_width"]
             Tensor with half spatial resolution.
         """
         return self.op(x)
@@ -140,17 +148,20 @@ class _SpatialUpsample(nn.Module):
             output_padding=(0, 1, 1),
         )
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    @jaxtyped(typechecker=beartype)
+    def forward(
+        self, x: Float[torch.Tensor, "batch channels time height width"]
+    ) -> Float[torch.Tensor, "batch channels time out_height out_width"]:
         """Upsample the spatial dimensions of a latent tensor.
 
         Parameters
         ----------
-        x : torch.Tensor
+        x : Float[torch.Tensor, "batch channels time height width"]
             Channel-first latent tensor.
 
         Returns
         -------
-        torch.Tensor
+        Float[torch.Tensor, "batch channels time out_height out_width"]
             Tensor with doubled spatial resolution.
         """
         return self.op(x)
@@ -212,7 +223,7 @@ class DenoiserUNet(nn.Module):
     def forward(
         self,
         noisy: Float[torch.Tensor, "batch latent_channels forecast_time height width"],
-        timesteps: torch.Tensor,
+        diffusion_step_index: Int[torch.Tensor, " batch"],
         context: Float[torch.Tensor, "batch condition_channels input_time height width"],
     ) -> Float[torch.Tensor, "batch latent_channels forecast_time height width"]:
         """Predict noise in a noised latent target.
@@ -221,8 +232,8 @@ class DenoiserUNet(nn.Module):
         ----------
         noisy : Float[torch.Tensor, "batch latent_channels forecast_time height width"]
             Noised target latent.
-        timesteps : torch.Tensor
-            Diffusion timestep for each sample.
+        diffusion_step_index : Int[torch.Tensor, "batch"]
+            Index into the diffusion schedule for each sample.
         context : Float[torch.Tensor, "batch condition_channels input_time height width"]
             Conditioning context from the input-history latent.
 
@@ -245,7 +256,7 @@ class DenoiserUNet(nn.Module):
             context = torch.nn.functional.interpolate(context, size=noisy.shape[2:], mode="nearest")
 
         x = self.input_projection(torch.cat([noisy, context], dim=1))
-        diffusion_step_embedding = self.diffusion_step_embedding(timesteps)
+        diffusion_step_embedding = self.diffusion_step_embedding(diffusion_step_index)
 
         skips: list[torch.Tensor] = []
         for block_idx, block in enumerate(self.down_blocks):

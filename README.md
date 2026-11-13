@@ -183,7 +183,7 @@ mlcast train \
 # Run two-stage latent diffusion training with a shorter diffusion schedule
 mlcast train \
     --config config:latent_diffusion_experiment \
-    --config set:stage2.pl_module.diffusion_net.scheduler.timesteps=20
+    --config set:stage2.pl_module.diffusion_net.scheduler.n_diffusion_steps=20
 
 # Inspect the fully resolved config without starting training
 mlcast train --config config:convgru_training_experiment --config fiddler:use_random_sampler --print_config_and_exit
@@ -234,7 +234,7 @@ cfg = latent_diffusion_experiment.as_buildable()
 use_random_sampler(cfg)
 
 # Override the diffusion noise schedule
-cfg.stage2.pl_module.diffusion_net.scheduler.timesteps = 20
+cfg.stage2.pl_module.diffusion_net.scheduler.n_diffusion_steps = 20
 
 # train_from_config applies to the full two-stage experiment
 train_from_config(cfg)
@@ -565,7 +565,7 @@ The latent diffusion model is built from a
   noisy target latent, a diffusion step embedding (sinusoidal), and the
   conditioning context from the conditioner. The U-Net predicts the additive
   noise (`eps` parameterization) that was applied to reach the current
-  timestep.
+  diffusion step.
 - **DiffusionScheduler** — defines the forward diffusion noise schedule
   (linear beta schedule by default) and provides the pre-computed alpha/beta
   buffers used by the forward and reverse processes.
@@ -573,7 +573,7 @@ The latent diffusion model is built from a
 Training uses a standard MSE diffusion loss (`DiffusionLoss` in
 `src/mlcast/models/diffusion/loss.py`): for each batch the input is encoded
 with the trained (frozen) encoder, the target is encoded with the same encoder,
-a random timestep is drawn per sample, noise is added to the target latents,
+a random diffusion step index is drawn per sample, noise is added to the target latents,
 and the denoiser is trained to predict the added noise.
 
 Inference uses a [`DiffusionSampler`](src/mlcast/models/diffusion/sampler.py)

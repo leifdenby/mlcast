@@ -127,7 +127,7 @@ def latent_diffusion_experiment() -> LatentDiffusionTrainingExperiment:
     diffusion_net = LatentDiffusionNet(
         conditioner=ConditionerNet(latent_channels=32, hidden_channels=32, num_blocks=2),
         denoiser=DenoiserUNet(latent_channels=32, condition_channels=32, hidden_channels=32, num_blocks=2),
-        scheduler=DiffusionScheduler(timesteps=1000),
+        scheduler=DiffusionScheduler(n_diffusion_steps=1000),
     )
     stage2_module = LatentSpaceForecastingTaskModule(
         autoencoder=autoencoder,

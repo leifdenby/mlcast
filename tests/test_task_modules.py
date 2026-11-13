@@ -52,7 +52,7 @@ def _build_autoencoder() -> AutoencoderNet:
 def _build_diffusion_net() -> LatentDiffusionNet:
     conditioner = ConditionerNet(latent_channels=4, hidden_channels=8, num_blocks=1)
     denoiser = DenoiserUNet(latent_channels=4, condition_channels=8, hidden_channels=8, num_blocks=2)
-    scheduler = DiffusionScheduler(timesteps=2)
+    scheduler = DiffusionScheduler(n_diffusion_steps=2)
     return LatentDiffusionNet(conditioner=conditioner, denoiser=denoiser, scheduler=scheduler)
 
 

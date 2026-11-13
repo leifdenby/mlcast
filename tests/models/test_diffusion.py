@@ -9,7 +9,9 @@ from mlcast.models.diffusion import (
 )
 
 
-def _build_diffusion_net(latent_channels: int = 1, hidden_channels: int = 8, timesteps: int = 4) -> LatentDiffusionNet:
+def _build_diffusion_net(
+    latent_channels: int = 1, hidden_channels: int = 8, n_diffusion_steps: int = 4
+) -> LatentDiffusionNet:
     conditioner = ConditionerNet(latent_channels=latent_channels, hidden_channels=hidden_channels, num_blocks=1)
     denoiser = DenoiserUNet(
         latent_channels=latent_channels,
@@ -17,7 +19,7 @@ def _build_diffusion_net(latent_channels: int = 1, hidden_channels: int = 8, tim
         hidden_channels=hidden_channels,
         num_blocks=1,
     )
-    scheduler = DiffusionScheduler(timesteps=timesteps)
+    scheduler = DiffusionScheduler(n_diffusion_steps=n_diffusion_steps)
     return LatentDiffusionNet(conditioner=conditioner, denoiser=denoiser, scheduler=scheduler)
 
 
@@ -28,13 +30,13 @@ def test_latent_diffusion_net_api() -> None:
     latent_channels = 1
     height = 4
     width = 4
-    diffusion_net = _build_diffusion_net(latent_channels=latent_channels, hidden_channels=4, timesteps=2)
+    diffusion_net = _build_diffusion_net(latent_channels=latent_channels, hidden_channels=4, n_diffusion_steps=2)
     noised_target = torch.randn(2, latent_channels, forecast_steps, height, width)
     input_latents = torch.randn(2, latent_channels, input_time, height, width)
-    timesteps = torch.zeros(2, dtype=torch.long)
+    diffusion_step_index = torch.zeros(2, dtype=torch.long)
 
     with torch.no_grad():
-        predicted_noise = diffusion_net(noised_target, timesteps, input_latents)
+        predicted_noise = diffusion_net(noised_target, diffusion_step_index, input_latents)
 
     assert predicted_noise.shape == noised_target.shape
 
@@ -44,14 +46,14 @@ def test_denoiser_warns_once_when_context_time_differs() -> None:
     denoiser = DenoiserUNet(latent_channels=1, condition_channels=4, hidden_channels=4, num_blocks=1)
     noisy = torch.randn(1, 1, 3, 4, 4)
     context = torch.randn(1, 4, 2, 4, 4)
-    timesteps = torch.zeros(1, dtype=torch.long)
+    diffusion_step_index = torch.zeros(1, dtype=torch.long)
 
     messages: list[str] = []
     handler_id = logger.add(messages.append, level="WARNING", format="{message}")
     try:
         with torch.no_grad():
-            denoiser(noisy, timesteps, context)
-            denoiser(noisy, timesteps, context)
+            denoiser(noisy, diffusion_step_index, context)
+            denoiser(noisy, diffusion_step_index, context)
     finally:
         logger.remove(handler_id)
 
@@ -68,7 +70,7 @@ def test_diffusion_model_improves_loss_on_generated_latents() -> None:
     forecast_time = 3
     height = 4
     width = 4
-    diffusion_net = _build_diffusion_net(latent_channels=latent_channels, hidden_channels=8, timesteps=1)
+    diffusion_net = _build_diffusion_net(latent_channels=latent_channels, hidden_channels=8, n_diffusion_steps=1)
     optimizer = torch.optim.Adam(diffusion_net.parameters(), lr=5e-3)
 
     input_latents = torch.randn(batch_size, latent_channels, input_time, height, width)
@@ -77,12 +79,12 @@ def test_diffusion_model_improves_loss_on_generated_latents() -> None:
     target_latents = target_latents + 0.05 * torch.randn_like(target_latents)
 
     def compute_loss() -> torch.Tensor:
-        timesteps = torch.randint(
-            0, diffusion_net.num_timesteps, (target_latents.shape[0],), device=target_latents.device
+        diffusion_step_index = torch.randint(
+            0, diffusion_net.n_diffusion_steps, (target_latents.shape[0],), device=target_latents.device
         )
         noise = torch.randn_like(target_latents)
-        noised_target = diffusion_net.q_sample(target_latents, timesteps=timesteps, noise=noise)
-        predicted_noise = diffusion_net(noised_target, timesteps, input_latents)
+        noised_target = diffusion_net.q_sample(target_latents, diffusion_step_index=diffusion_step_index, noise=noise)
+        predicted_noise = diffusion_net(noised_target, diffusion_step_index, input_latents)
         return torch.nn.functional.mse_loss(predicted_noise, noise)
 
     torch.manual_seed(42)
