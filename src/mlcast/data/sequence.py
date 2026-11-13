@@ -3,16 +3,21 @@
 These datasets are responsible for sampling normalized spatio-temporal
 sequences directly from source datasets. They do not impose any forecasting or
 reconstruction task structure on the sampled sequence.
+
+Provides an indexed dataset (crops at locations read from a precomputed
+sampling index) and a random-sampling dataset.
 """
 
 import time
 import warnings
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any
 
 import cf_xarray  # noqa: F401
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 import torch
 import xarray as xr
 from beartype import beartype
@@ -21,6 +26,25 @@ from torch import Tensor
 from torch.utils.data import Dataset
 
 from mlcast.data.normalization import NORMALIZATION_REGISTRY
+from mlcast.data.source_data.sampling import CandidateSelector
+
+
+def _load_sampling_index(path: str) -> pd.DataFrame:
+    """Load a precomputed sampling index as a DataFrame.
+
+    Accepts a sampling index (``mlcast build-sampling-index`` output) or a legacy
+    ``.csv``. Returns at least the ``t, x, y`` crop-corner columns, plus the
+    per-datacube ``mean`` column when the file carries it (parquet only) — the
+    latter feeds importance sampling. Only the needed columns are read.
+    """
+    suffix = Path(path).suffix.lower()
+    if suffix == ".csv":
+        return pd.read_csv(path)
+    if suffix in (".parquet", ".pq"):
+        available = set(pq.read_schema(path).names)
+        columns = [c for c in ("t", "x", "y", "mean") if c in available]
+        return pq.read_table(path, columns=columns).to_pandas()
+    raise ValueError(f"Unsupported sampling index format {suffix!r} for {path!r}; expected .parquet or .csv")
 
 
 def _time_range_to_index_slice(
@@ -245,6 +269,9 @@ class SourceDataSequenceDatasetBase(Dataset, ABC):
         Float[Tensor, "sequence_steps channels height width"]
             Float32 sequence tensor, augmented if requested.
         """
+        # source data may be float64, but the model and the rest of the
+        # training pipeline operate in float32. NaNs are kept here; task
+        # wrappers (e.g. ForecastingDataset) derive masks and fill them.
         data = np.ascontiguousarray(data, dtype=np.float32)
         sequence_t = torch.from_numpy(data)
         if self.augment:
@@ -258,17 +285,22 @@ class SourceDataSequenceDatasetBase(Dataset, ABC):
     def __getitem__(self, idx: int) -> Float[Tensor, "sequence_steps channels height width"]: ...
 
 
-class SourceDataPrecomputedSequenceDataset(SourceDataSequenceDatasetBase):
-    """Sequence dataset using pre-sampled spatial-temporal coordinates from CSV.
+class SourceDataIndexedSequenceDataset(SourceDataSequenceDatasetBase):
+    """Sequence dataset yielding Zarr crops at locations read from a precomputed index.
+
+    Each sample is a normalized spatio-temporal crop of shape
+    ``(sequence_steps, C, H, W)``.
 
     Parameters
     ----------
     zarr_path : str
         Path to the Zarr dataset.
-    csv_path : str
-        Path to the CSV file with ``t``, ``x``, and ``y`` crop coordinates.
+    index_path : str
+        Path to the sampling index of ``(t, x, y)`` crop corners: a
+        parquet (the candidate pool, optionally filtered by ``selector``) or a
+        legacy ``.csv`` (already sampled, used as-is).
     standard_names : list of str
-        CF standard names of variables to load.
+        CF standard names of variables to load (e.g., ``["rainfall_flux"]``).
     sequence_steps : int
         Number of timesteps to include in each sampled sequence.
     deterministic : bool, optional
@@ -288,12 +320,18 @@ class SourceDataPrecomputedSequenceDataset(SourceDataSequenceDatasetBase):
         ``24``.
     storage_options : dict or None, optional
         Options forwarded to ``xr.open_zarr``. Default is ``None``.
+    selector : CandidateSelector or None, optional
+        Optional selector to filter the candidate index with a chosen strategy,
+        applied once at init (see :mod:`mlcast.data.source_data.sampling.selection`). Default
+        ``None`` keeps every candidate.
+    selection_seed : int, optional
+        Seed for the selector's one-time selection. Default ``42``.
     """
 
     def __init__(
         self,
         zarr_path: str,
-        csv_path: str,
+        index_path: str,
         standard_names: list[str],
         sequence_steps: int,
         deterministic: bool = False,
@@ -303,6 +341,8 @@ class SourceDataPrecomputedSequenceDataset(SourceDataSequenceDatasetBase):
         height: int = 256,
         time_depth: int = 24,
         storage_options: dict[str, Any] | None = None,
+        selector: CandidateSelector | None = None,
+        selection_seed: int = 42,
     ) -> None:
         if subset:
             for key in subset:
@@ -326,13 +366,23 @@ class SourceDataPrecomputedSequenceDataset(SourceDataSequenceDatasetBase):
             storage_options=storage_options,
         )
 
-        self.coords = pd.read_csv(csv_path).sort_values("t")
+        self.candidates = _load_sampling_index(index_path).sort_values("t")
         if self._time_index_slice is not None:
             t_start = self._time_index_slice.start
             t_stop = self._time_index_slice.stop
-            self.coords = self.coords[(self.coords["t"] >= t_start) & (self.coords["t"] < t_stop)].reset_index(
-                drop=True
-            )
+            # `t` is an absolute index into the full zarr, but `self.ds` is sliced to
+            # this subset (its time axis is 0-based). Keep only windows whose full
+            # depth fits inside the subset, then rebase `t` onto the sliced axis so
+            # `__getitem__` indexes it correctly and splits don't leak across the
+            # boundary.
+            self.candidates = self.candidates[
+                (self.candidates["t"] >= t_start) & (self.candidates["t"] + time_depth <= t_stop)
+            ].reset_index(drop=True)
+            self.candidates["t"] = self.candidates["t"] - t_start
+
+        if selector is not None:
+            selected = selector.select(self.candidates, np.random.default_rng(selection_seed))
+            self.candidates = self.candidates.iloc[selected].reset_index(drop=True)
 
         self.dt = time_depth
 
@@ -349,7 +399,7 @@ class SourceDataPrecomputedSequenceDataset(SourceDataSequenceDatasetBase):
         int
             Number of available sequence samples.
         """
-        return len(self.coords)
+        return len(self.candidates)
 
     @jaxtyped(typechecker=beartype)
     def __getitem__(self, idx: int) -> Float[Tensor, "sequence_steps channels height width"]:
@@ -365,7 +415,8 @@ class SourceDataPrecomputedSequenceDataset(SourceDataSequenceDatasetBase):
         Float[Tensor, "sequence_steps channels height width"]
             Normalized sequence tensor sampled from the source dataset.
         """
-        t0, x0, y0 = self.coords.iloc[idx]
+        row = self.candidates.iloc[idx]
+        t0, x0, y0 = row["t"], row["x"], row["y"]
 
         x_slice = slice(int(x0), int(x0) + self.w)
         y_slice = slice(int(y0), int(y0) + self.h)
@@ -394,7 +445,7 @@ class SourceDataRandomSequenceDataset(SourceDataSequenceDatasetBase):
     zarr_path : str
         Path to the Zarr dataset.
     standard_names : list of str
-        CF standard names of variables to load.
+        CF standard names of variables to load (e.g., ``["rainfall_flux"]``).
     sequence_steps : int
         Number of timesteps to include in each sampled sequence.
     deterministic : bool, optional
@@ -413,7 +464,8 @@ class SourceDataRandomSequenceDataset(SourceDataSequenceDatasetBase):
     storage_options : dict or None, optional
         Options forwarded to ``xr.open_zarr``. Default is ``None``.
     **kwargs : Any
-        Ignored extra arguments to allow partial config reuse.
+        Ignored extra arguments (e.g. ``index_path``, ``selector``) to allow
+        drop-in replacement of the indexed dataset.
     """
 
     def __init__(

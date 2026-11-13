@@ -4,7 +4,7 @@ import pytest
 from loguru import logger
 
 from mlcast.config import convgru_training_experiment, validate_config
-from mlcast.data.sequence import SourceDataPrecomputedSequenceDataset
+from mlcast.data.sequence import SourceDataIndexedSequenceDataset
 
 
 def test_contract_1_input_channels() -> None:
@@ -94,9 +94,9 @@ def test_contract_6_forecast_steps_sync() -> None:
 def test_dataset_sequence_steps_guard() -> None:
     """Verify that sequence dataset raises ValueError when sequence_steps=0."""
     with pytest.raises(ValueError, match="sequence_steps"):
-        SourceDataPrecomputedSequenceDataset(
+        SourceDataIndexedSequenceDataset(
             zarr_path="dummy.zarr",
-            csv_path="dummy.csv",
+            index_path="dummy.csv",
             standard_names=["rainfall_rate"],
             sequence_steps=0,
         )

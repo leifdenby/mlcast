@@ -8,7 +8,7 @@ from mlcast.config import (
     use_random_sampler,
     use_ratio_splits,
 )
-from mlcast.data.sequence import SourceDataPrecomputedSequenceDataset, SourceDataRandomSequenceDataset
+from mlcast.data.sequence import SourceDataIndexedSequenceDataset, SourceDataRandomSequenceDataset
 
 
 def test_fiddler_set_variables() -> None:
@@ -54,8 +54,8 @@ def test_fiddler_use_random_sampler_on_latent_diffusion() -> None:
     """Verify use_random_sampler applies to both stages of LatentDiffusionTrainingExperiment."""
     cfg = latent_diffusion_experiment.as_buildable()
 
-    assert fdl.get_callable(cfg.stage1.data.sequence_dataset_factory) is SourceDataPrecomputedSequenceDataset
-    assert fdl.get_callable(cfg.stage2.data.sequence_dataset_factory) is SourceDataPrecomputedSequenceDataset
+    assert fdl.get_callable(cfg.stage1.data.sequence_dataset_factory) is SourceDataIndexedSequenceDataset
+    assert fdl.get_callable(cfg.stage2.data.sequence_dataset_factory) is SourceDataIndexedSequenceDataset
 
     use_random_sampler(cfg)
 

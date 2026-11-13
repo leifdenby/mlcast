@@ -10,7 +10,8 @@ from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, Mode
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from mlcast.data.datamodules import ForecastingDataModule, ReconstructionDataModule
-from mlcast.data.sequence import SourceDataPrecomputedSequenceDataset
+from mlcast.data.sequence import SourceDataIndexedSequenceDataset
+from mlcast.data.source_data.sampling import ImportanceSelector, UniformSelector
 from mlcast.models.autoencoder import AutoencoderNet, Decoder, Encoder
 from mlcast.models.diffusion import ConditionerNet, DenoiserUNet, DiffusionScheduler, LatentDiffusionNet
 from mlcast.modules.forecasting import LatentDiffusionTaskModule
@@ -70,10 +71,10 @@ def latent_diffusion_experiment() -> LatentDiffusionTrainingExperiment:
     sequence_steps = input_steps + forecast_steps
 
     sequence_dataset_factory = fdl.Partial(
-        SourceDataPrecomputedSequenceDataset,
+        SourceDataIndexedSequenceDataset,
         zarr_path="./data/radar.zarr",
-        csv_path="./data/sampled_datacubes.csv",
-        standard_names=["rainfall_rate"],
+        index_path="./data/sampled_datacubes.parquet",
+        standard_names=["rainfall_flux"],
         sequence_steps=sequence_steps,
         deterministic=False,
     )
@@ -87,6 +88,8 @@ def latent_diffusion_experiment() -> LatentDiffusionTrainingExperiment:
         sequence_dataset_factory=sequence_dataset_factory,
         input_steps=input_steps,
         splits={"time": {"train": 0.70, "val": 0.15, "test": 0.15}},
+        train_selector=ImportanceSelector(),
+        eval_selector=UniformSelector(keep_fraction=0.1),
         batch_size=4,
         num_workers=8,
         pin_memory=True,
@@ -115,6 +118,8 @@ def latent_diffusion_experiment() -> LatentDiffusionTrainingExperiment:
         forecast_steps=forecast_steps,
         return_mask=False,
         splits={"time": {"train": 0.70, "val": 0.15, "test": 0.15}},
+        train_selector=ImportanceSelector(),
+        eval_selector=UniformSelector(keep_fraction=0.1),
         batch_size=1,
         num_workers=8,
         pin_memory=True,

@@ -18,14 +18,16 @@ class ForecastingSample(TypedDict, total=False):
         Past frames fed to the forecasting model.
     target : Float[Tensor, "forecast_steps channels height width"]
         Future frames the forecasting model should predict.
-    target_mask : Float[Tensor, "forecast_steps channels height width"]
-        Per-timestep, per-channel validity mask for the target when
-        ``return_mask=True``.
+    target_mask : Float[Tensor, "1 channels height width"]
+        Per-cell validity mask collapsed over the whole sequence: a cell is 1
+        only if it was finite at every step (inputs and targets), else 0. Its
+        leading axis is a single step that the loss broadcasts over the forecast
+        steps. Only present when ``return_mask=True``.
     """
 
     input: Float[Tensor, "input_steps channels height width"]
     target: Float[Tensor, "forecast_steps channels height width"]
-    target_mask: Float[Tensor, "forecast_steps channels height width"]
+    target_mask: Float[Tensor, "1 channels height width"]
 
 
 class ForecastingDataset(Dataset):
@@ -98,8 +100,14 @@ class ForecastingDataset(Dataset):
         """
         sequence = self.base_sequence_dataset[idx]
 
+        # Validity mask, collapsed over the whole sequence: a cell is scored only
+        # if it is finite at EVERY step (inputs and targets). A temporal
+        # discontinuity anywhere makes the forecast trajectory at that cell
+        # ill-defined (and the temporal-consistency loss term meaningless), so we
+        # mask it for the whole sequence. Kept as (1, C, H, W); the loss broadcasts
+        # it over the forecast steps. Computed before NaNs are filled below.
         if self.return_mask:
-            target_mask_t = (~torch.isnan(sequence[self.input_steps :])).to(dtype=torch.float32)
+            target_mask_t = (~torch.isnan(sequence).any(dim=0, keepdim=True)).to(dtype=torch.float32)
 
         sequence = torch.nan_to_num(sequence, nan=-1.0).to(dtype=torch.float32)
         input_t = sequence[: self.input_steps]

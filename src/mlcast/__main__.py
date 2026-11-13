@@ -23,38 +23,60 @@ Usage examples::
     python -m mlcast train --config config:another_experiment_function
 """
 
+from __future__ import annotations
+
 import argparse
 import ast
+import importlib.util
 import sys
+from typing import TYPE_CHECKING
 
-import fiddle as fdl
-import torch
-from absl import app, flags
-from fiddle import absl_flags
-from rich import print as rprint
-from rich.console import Console
-from rich.text import Text
+if TYPE_CHECKING:
+    import fiddle as fdl
+    from rich.text import Text
 
-from . import config  # noqa: F401 — module must be importable for absl_flags
-from .config import convgru_training_experiment, load_yaml_config, train_from_config
+# The training stack (torch, Fiddle, absl, the model/data config) is heavy, so
+# it is imported only on the `train` path; `mlcast -h`, `mlcast build-sampling-index`, and
+# `mlcast validate-sampling-index` stay fast. These globals are populated by
+# `_define_train_flags()`, called from `cli()` for the `train` command.
+FLAGS = None
+_config = None
 
-FLAGS = flags.FLAGS
 
-_config = absl_flags.DEFINE_fiddle_config(
-    "config",
-    default_module=config,
-    help_string="Experiment configuration. Required: use config:<name> or a YAML path.",
-)
+def _define_train_flags() -> None:
+    """Import the Fiddle/absl machinery and define the `train` flags (once)."""
+    global FLAGS, _config
+    # torch is only installed through the `cpu` / `gpu-*` extras, so fail with
+    # install instructions rather than a bare ModuleNotFoundError.
+    if importlib.util.find_spec("torch") is None:
+        sys.exit(
+            "mlcast train requires PyTorch, which is installed through an extra:\n"
+            "  uv sync --extra cpu  (or --extra gpu-cu126 / gpu-cu128 / gpu-cu130)\n"
+            "  pip install 'mlcast[cpu]'"
+        )
+    from absl import flags
+    from fiddle import absl_flags
 
-flags.DEFINE_boolean(
-    "print_config_and_exit",
-    False,
-    "Print the resolved experiment config and exit without training.",
-)
+    from . import config
+
+    FLAGS = flags.FLAGS
+    if _config is None:
+        _config = absl_flags.DEFINE_fiddle_config(
+            "config",
+            default_module=config,
+            help_string="Experiment configuration. Required: use config:<name> or a YAML path.",
+        )
+        flags.DEFINE_boolean(
+            "print_config_and_exit",
+            False,
+            "Print the resolved experiment config and exit without training.",
+        )
 
 
 def get_included_config_names() -> list[str]:
     """Return public config factory names exposed by ``mlcast.config``."""
+    from . import config
+
     included_configs: list[str] = []
     for name in getattr(config, "__all__", []):
         value = getattr(config, name, None)
@@ -99,7 +121,7 @@ def get_fiddler_examples(base_config_name: str = "convgru_training_experiment") 
     """Returns a list of (description, flag_string) tuples for Fiddler mutators."""
     return [
         (
-            "Switch to the random sampling dataset (instead of the precomputed CSV sampler)",
+            "Switch to the random sampling dataset (instead of the precomputed sampling index)",
             f"--config config:{base_config_name} --config fiddler:use_random_sampler",
         ),
         (
@@ -123,6 +145,8 @@ def get_fiddler_examples(base_config_name: str = "convgru_training_experiment") 
 
 def _build_help_text(cfg: fdl.Buildable) -> Text:
     """Build Rich-highlighted help text for the ``train`` subcommand."""
+    from rich.text import Text
+
     t = Text()
     included_config_names = get_included_config_names()
 
@@ -188,17 +212,21 @@ def _build_help_text(cfg: fdl.Buildable) -> Text:
 class _RichHelpParser(argparse.ArgumentParser):
     """ArgumentParser that renders the description with Rich when ``--help`` is requested."""
 
-    _rich_description: Text | None = None
+    # A callable returning a rich Text, invoked only when help is printed — so
+    # the (expensive) train config graph is built only for `mlcast train -h`.
+    _rich_description_factory = None
 
     def print_help(self, file=None) -> None:  # type: ignore[override]
+        from rich.console import Console
+
         console = Console(file=file or sys.stdout)
         # Print usage line first (plain argparse)
         formatter = self._get_formatter()
         formatter.add_usage(self.usage, self._actions, self._mutually_exclusive_groups)
         console.print(formatter.format_help(), end="")
-        # Rich description
-        if self._rich_description is not None:
-            console.print(self._rich_description)
+        # Rich description (built on demand)
+        if self._rich_description_factory is not None:
+            console.print(self._rich_description_factory())
         else:
             console.print(self.description or "")
         # Standard options section
@@ -208,6 +236,19 @@ class _RichHelpParser(argparse.ArgumentParser):
             formatter2.add_arguments(action_group._group_actions)
             formatter2.end_section()
         console.print(formatter2.format_help(), end="")
+
+
+def _build_train_help() -> Text:
+    """Build the (expensive) Rich help for ``train`` — only when ``-h`` is asked."""
+    from .config import convgru_training_experiment
+
+    try:
+        cfg = convgru_training_experiment.as_buildable()
+        return _build_help_text(cfg)
+    except Exception:
+        from rich.text import Text
+
+        return Text("Train a model. Overrides can be passed via --config set:key=value")
 
 
 def auto_quote_fiddle_strings(remaining: list[str]) -> list[str]:
@@ -314,6 +355,8 @@ def _seed_fiddle_flag_from_yaml(yaml_path: str) -> None:
     yaml_path : str
         Path to the YAML config file to load.
     """
+    from .config import load_yaml_config
+
     cfg = load_yaml_config(yaml_path)
     FLAGS["config"]._value = cfg
     FLAGS["config"].first_command = "config"
@@ -331,6 +374,10 @@ def train_main(argv: list[str]) -> None:
     argv : list of str
         The list of command-line arguments passed by absl.
     """
+    import torch
+    from rich import print as rprint
+
+    from .config import train_from_config
 
     # Catch legacy Fiddle flags and guide the user to the correct syntax.
     legacy_flags_used = []
@@ -364,6 +411,23 @@ def train_main(argv: list[str]) -> None:
     train_from_config(_config.value)
 
 
+def _run_sampling_command(name: str, remaining: list[str]) -> None:
+    """Dispatch the data-prep subcommands (``build-sampling-index`` / ``validate-sampling-index``).
+
+    Imported lazily to keep ``mlcast train`` startup light.
+    """
+    from loguru import logger
+
+    from mlcast.data.source_data.sampling import commands
+
+    logger.remove()
+    logger.add(sys.stderr, level="INFO")
+    module = commands.build_sampling_index if name == "build-sampling-index" else commands.validate_sampling_index
+    sub = argparse.ArgumentParser(prog=f"mlcast {name}")
+    module.add_arguments(sub)
+    sys.exit(module.run(sub.parse_args(remaining)))
+
+
 def cli() -> None:
     """Console script entry point for the ``mlcast`` command.
 
@@ -371,15 +435,6 @@ def cli() -> None:
     explicit base configuration was provided, formats the `--help` output, and
     safely passes execution over to `absl.app.run`.
     """
-
-    # Dynamically generate help text showing Fiddle overrides
-    try:
-        cfg = convgru_training_experiment.as_buildable()
-        description_text = _build_help_text(cfg)
-    except Exception:
-        # Fallback if config generation fails during CLI initialization
-        description_text = "Train a model. Overrides can be passed via --config set:key=value"
-
     parser = argparse.ArgumentParser(
         prog="mlcast",
         description="Entry point for mlcast. Uses Fiddle's absl_flags integration.",
@@ -392,17 +447,34 @@ def cli() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         add_help=False,
     )
-    # Swap in our Rich-aware parser class and attach the highlighted description
+    # Swap in our Rich-aware parser; the highlighted description (which builds
+    # the Fiddle config graph) is produced lazily, only when `train -h` runs.
     train_parser.__class__ = _RichHelpParser
-    if isinstance(description_text, Text):
-        train_parser._rich_description = description_text  # type: ignore[attr-defined]
+    train_parser._rich_description_factory = _build_train_help  # type: ignore[attr-defined]
     train_parser.add_argument(
         "-h", "--help", action="help", default=argparse.SUPPRESS, help="Show this message and exit."
+    )
+
+    # Data-prep subcommands (plain argparse, no Fiddle). Defined bare here; the
+    # command modules are imported lazily in the dispatch below to keep
+    # `mlcast train` startup light.
+    subparsers.add_parser(
+        "build-sampling-index",
+        add_help=False,
+        help="Scan a Zarr dataset and write a sampling index (candidate datacubes + sample stats).",
+    )
+    subparsers.add_parser(
+        "validate-sampling-index",
+        add_help=False,
+        help="Validate a sampling index against the canonical contract.",
     )
 
     args, remaining = parser.parse_known_args()
 
     if args.command == "train":
+        _define_train_flags()
+        from absl import app
+
         # Case 1: user supplied a YAML file path as the base config
         #   e.g. --config /path/to/config.yaml
         #   Extract it from remaining; any set:/fiddler: flags that follow are
@@ -433,6 +505,8 @@ def cli() -> None:
             _seed_fiddle_flag_from_yaml(yaml_path)
 
         app.run(train_main, argv=[sys.argv[0]] + remaining)
+    elif args.command in ("build-sampling-index", "validate-sampling-index"):
+        _run_sampling_command(args.command, remaining)
 
 
 if __name__ == "__main__":

@@ -8,7 +8,8 @@ from pytorch_lightning.callbacks import EarlyStopping, LearningRateMonitor, Mode
 from pytorch_lightning.loggers import TensorBoardLogger
 
 from mlcast.data.datamodules import ForecastingDataModule
-from mlcast.data.sequence import SourceDataPrecomputedSequenceDataset
+from mlcast.data.sequence import SourceDataIndexedSequenceDataset
+from mlcast.data.source_data.sampling import ImportanceSelector, UniformSelector
 from mlcast.models.convgru import ConvGruModel
 from mlcast.modules.forecasting import OutputSpaceForecastingTaskModule
 
@@ -29,10 +30,10 @@ def convgru_training_experiment() -> Experiment:
         Configured experiment with model, data, and trainer.
     """
     sequence_dataset_factory = fdl.Partial(
-        SourceDataPrecomputedSequenceDataset,
+        SourceDataIndexedSequenceDataset,
         zarr_path="./data/radar.zarr",
-        csv_path="./data/sampled_datacubes.csv",
-        standard_names=["rainfall_rate"],
+        index_path="./data/sampled_datacubes.parquet",
+        standard_names=["rainfall_flux"],
         sequence_steps=18,
         deterministic=False,
     )
@@ -43,6 +44,8 @@ def convgru_training_experiment() -> Experiment:
         forecast_steps=12,
         return_mask=True,
         splits={"time": {"train": 0.70, "val": 0.15, "test": 0.15}},
+        train_selector=ImportanceSelector(),
+        eval_selector=UniformSelector(keep_fraction=0.1),
         batch_size=16,
         num_workers=8,
         pin_memory=True,

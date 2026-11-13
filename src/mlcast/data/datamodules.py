@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader, Dataset
 
 from mlcast.data.forecasting import ForecastingDataset
 from mlcast.data.reconstruction import ReconstructionDataset
+from mlcast.data.source_data.sampling import CandidateSelector
 from mlcast.data.splits import (
     compute_split_ranges_from_splitting_ratios,
     splitting_uses_fractions,
@@ -24,9 +25,13 @@ class _BaseDataModule(pl.LightningDataModule):
     ----------
     sequence_dataset_factory : Callable[..., Dataset]
         Factory that builds source-data sequence datasets and accepts
-        ``subset`` and ``augment`` keyword arguments.
+        ``subset``, ``augment`` and ``selector`` keyword arguments.
     splits : dict of str to dict
         Nested mapping describing train/validation/test coordinate splits.
+    train_selector, eval_selector : CandidateSelector or None, optional
+        Per-split candidate selector passed to the factory (train vs val/test),
+        like ``augment``. Default ``None`` uses the full index. Keep importance
+        sampling on ``train_selector`` so val/test stay representative.
     **dataloader_kwargs : Any
         Additional keyword arguments forwarded to ``DataLoader``.
     """
@@ -35,15 +40,21 @@ class _BaseDataModule(pl.LightningDataModule):
         self,
         sequence_dataset_factory: Callable[..., Dataset],
         splits: dict[str, dict[str, Any]],
+        train_selector: CandidateSelector | None = None,
+        eval_selector: CandidateSelector | None = None,
         **dataloader_kwargs: Any,
     ) -> None:
         super().__init__()
         self.sequence_dataset_factory = sequence_dataset_factory
         self.splits = splits
+        self.train_selector = train_selector
+        self.eval_selector = eval_selector
         self.dataloader_kwargs = dataloader_kwargs
         validate_splits(self.splits)
 
-    def _build_sequence_dataset(self, subset: dict[str, Any], augment: bool) -> Dataset:
+    def _build_sequence_dataset(
+        self, subset: dict[str, Any], augment: bool, selector: CandidateSelector | None
+    ) -> Dataset:
         """Build a source-data sequence dataset for one split.
 
         Parameters
@@ -52,13 +63,15 @@ class _BaseDataModule(pl.LightningDataModule):
             Coordinate subset passed to the sequence dataset factory.
         augment : bool
             Whether this split should apply data augmentation.
+        selector : CandidateSelector or None
+            Candidate selector for this split, or ``None`` for the full index.
 
         Returns
         -------
         Dataset
             Built source-data sequence dataset.
         """
-        return self.sequence_dataset_factory(subset=subset, augment=augment)
+        return self.sequence_dataset_factory(subset=subset, augment=augment, selector=selector)
 
     def _wrap_sequence_dataset(self, base_sequence_dataset: Dataset) -> Dataset:
         """Wrap a sequence dataset into a task-specific dataset.
@@ -133,12 +146,15 @@ class _BaseDataModule(pl.LightningDataModule):
                     subset_per_split[split_name][coord] = split_val
 
         augment_flags = {"train": True, "val": False, "test": False}
+        selector_flags = {"train": self.train_selector, "val": self.eval_selector, "test": self.eval_selector}
         for split in ("train", "val", "test"):
             subset = subset_per_split[split]
             if subset is None:
                 setattr(self, f"{split}_dataset", None)
             else:
-                base_sequence_dataset = self._build_sequence_dataset(subset=subset, augment=augment_flags[split])
+                base_sequence_dataset = self._build_sequence_dataset(
+                    subset=subset, augment=augment_flags[split], selector=selector_flags[split]
+                )
                 setattr(self, f"{split}_dataset", self._wrap_sequence_dataset(base_sequence_dataset))
 
         logger.info("{}.setup() complete, containing:", self.__class__.__name__)
