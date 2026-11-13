@@ -2,11 +2,11 @@
 
 Run without arguments to regenerate docs/config_diagram.svg:
 
-    uv run python docs/generate_base_experiment_config_diagram.py
+    uv run python docs/generate_convgru_config_diagram.py
 
 Run with --check to verify the diagram is up to date (used by pre-commit):
 
-    uv run python docs/generate_base_experiment_config_diagram.py --check
+    uv run python docs/generate_convgru_config_diagram.py --check
 """
 
 import argparse
@@ -37,10 +37,7 @@ def main() -> None:
 
     if args.check:
         if not OUT.exists() or OUT.read_text() != new_svg:
-            print(
-                "docs/config_diagram.svg is out of date.\n"
-                "Run: uv run python docs/generate_base_experiment_config_diagram.py"
-            )
+            print("docs/config_diagram.svg is out of date.\nRun: uv run python docs/generate_convgru_config_diagram.py")
             sys.exit(1)
         print("docs/config_diagram.svg is up to date.")
     else:

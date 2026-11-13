@@ -31,7 +31,7 @@ repos:
   - id: config-diagram-convgru
     name: convgru config diagram up to date
     language: system
-    entry: uv run python docs/generate_base_experiment_config_diagram.py --check
+    entry: uv run python docs/generate_convgru_config_diagram.py --check
     files: ^src/mlcast/config/(base|archetype/convgru)\.py$
     pass_filenames: false
   - id: config-diagram-latent-diffusion
