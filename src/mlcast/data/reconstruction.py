@@ -12,7 +12,7 @@ from torch.utils.data import Dataset
 
 
 class ReconstructionDataset(Dataset):
-    """Wrap a sequence dataset for stage-1 reconstruction training.
+    """Wrap a sequence dataset to provide samples for training a reconstruction model.
 
     Parameters
     ----------

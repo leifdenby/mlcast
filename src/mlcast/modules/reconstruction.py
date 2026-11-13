@@ -17,9 +17,8 @@ class ReconstructionTaskModule(pl.LightningModule):
     Purpose
     -------
     This task module trains reconstruction models on tensor-only batches from
-    ``ReconstructionDataset``. It is intended for stage-1 reconstruction or
-    autoencoder training, where the model learns to reproduce normalized
-    sequence windows.
+    ``ReconstructionDataset``, e.g. autoencoder training, where the model
+    learns to reproduce normalized sequence windows.
 
     Ownership
     ---------
