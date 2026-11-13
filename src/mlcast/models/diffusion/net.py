@@ -38,9 +38,11 @@ class LatentDiffusionNet(nn.Module):
 
     def __init__(self, conditioner: ConditionerNet, denoiser: DenoiserUNet, scheduler: DiffusionScheduler) -> None:
         super().__init__()
+        # Stored as attributes so they are registered as submodules (trained, saved, moved to device).
         self.conditioner = conditioner
         self.denoiser = denoiser
-        self.scheduler = scheduler
+        # The scheduler itself is not kept: its schedule is copied into registered buffers so it follows
+        # the module's device and is saved in checkpoints, and only the number of steps is needed besides.
         self.num_timesteps = scheduler.timesteps
         for name, value in scheduler.buffers(device=torch.device("cpu")).items():
             self.register_buffer(name, value)
