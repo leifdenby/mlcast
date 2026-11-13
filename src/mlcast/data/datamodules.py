@@ -1,5 +1,6 @@
 """PyTorch Lightning data modules for forecasting and reconstruction tasks."""
 
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
@@ -18,7 +19,7 @@ from mlcast.data.splits import (
 )
 
 
-class _BaseDataModule(pl.LightningDataModule):
+class _BaseDataModule(pl.LightningDataModule, ABC):
     """Shared split/build logic for task-level data modules.
 
     Parameters
@@ -73,6 +74,7 @@ class _BaseDataModule(pl.LightningDataModule):
         """
         return self.sequence_dataset_factory(subset=subset, augment=augment, selector=selector)
 
+    @abstractmethod
     def _wrap_sequence_dataset(self, base_sequence_dataset: Dataset) -> Dataset:
         """Wrap a sequence dataset into a task-specific dataset.
 
@@ -86,7 +88,6 @@ class _BaseDataModule(pl.LightningDataModule):
         Dataset
             Task-specific dataset for the split.
         """
-        raise NotImplementedError
 
     def setup(self, stage: str | None = None) -> None:
         """Create train, validation, and test datasets.
