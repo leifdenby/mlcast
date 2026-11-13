@@ -14,7 +14,9 @@ class DiffusionStepEmbedding(nn.Module):
 
     The diffusion step is the position in the noising/denoising chain, not a
     forecast time. The diffusion literature (and LDCast) usually calls this a
-    "timestep embedding".
+    "timestep embedding"; we use a different name because our data also has
+    physical timesteps (input and forecast steps), and "timestep" would be
+    ambiguous between the two.
 
     Parameters
     ----------
