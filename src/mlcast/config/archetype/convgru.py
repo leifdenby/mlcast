@@ -11,7 +11,7 @@ from mlcast.data.datamodules import ForecastingDataModule
 from mlcast.data.sequence import SourceDataIndexedSequenceDataset
 from mlcast.data.source_data.sampling import ImportanceSelector, UniformSelector
 from mlcast.models.convgru import ConvGruModel
-from mlcast.modules.forecasting import OutputSpaceForecastingTaskModule
+from mlcast.modules.forecasting import ObservationSpaceForecastingTaskModule
 
 from ..base import Experiment
 
@@ -60,7 +60,7 @@ def convgru_training_experiment() -> Experiment:
         noisy_decoder=False,
     )
 
-    pl_module = OutputSpaceForecastingTaskModule(
+    pl_module = ObservationSpaceForecastingTaskModule(
         network=network,
         loss_class="crps",
         loss_params={"temporal_lambda": 0.01},

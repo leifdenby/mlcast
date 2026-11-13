@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 
-from mlcast.modules.forecasting import OutputSpaceForecastingTaskModule
+from mlcast.modules.forecasting import ObservationSpaceForecastingTaskModule
 
 
 class DummyForecastNetwork(torch.nn.Module):
@@ -21,9 +21,9 @@ class DummyForecastNetwork(torch.nn.Module):
 
 
 def test_nowcasting_module_forward_uses_network_shape_contract() -> None:
-    """OutputSpaceForecastingTaskModule should call fixed-shape forecasting networks as network(x)."""
+    """ObservationSpaceForecastingTaskModule should call fixed-shape forecasting networks as network(x)."""
     network = DummyForecastNetwork(input_steps=3, forecast_steps=5, ensemble_size=2)
-    module = OutputSpaceForecastingTaskModule(network=network, loss_class="crps")
+    module = ObservationSpaceForecastingTaskModule(network=network, loss_class="crps")
     x = torch.randn(4, 3, 1, 8, 8)
 
     preds = module(x)
@@ -34,7 +34,7 @@ def test_nowcasting_module_forward_uses_network_shape_contract() -> None:
 def test_nowcasting_module_predict_uses_configured_output_shape() -> None:
     """Prediction horizon and ensemble size should come from the configured network."""
     network = DummyForecastNetwork(input_steps=3, forecast_steps=4, ensemble_size=2)
-    module = OutputSpaceForecastingTaskModule(network=network, loss_class="crps")
+    module = ObservationSpaceForecastingTaskModule(network=network, loss_class="crps")
     past = torch.ones(3, 8, 8)
 
     preds = module.predict(past, standard_name="rainfall_rate")

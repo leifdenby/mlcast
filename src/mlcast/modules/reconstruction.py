@@ -38,7 +38,7 @@ class ReconstructionTaskModule(pl.LightningModule):
     -----------------
     Each batch is a tensor-only reconstruction sample. The module uses that
     tensor as both the model input and the reconstruction target, computes the
-    reconstruction loss directly in output space, and logs the resulting scalar
+    reconstruction loss directly in observation space, and logs the resulting scalar
     loss for the active split.
 
     Inference behavior

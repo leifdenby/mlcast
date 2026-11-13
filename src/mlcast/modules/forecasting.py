@@ -231,8 +231,8 @@ class BaseForecastingTaskModule(pl.LightningModule):
         return preds_np
 
 
-class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
-    """Lightning task module for direct forecasting in output space.
+class ObservationSpaceForecastingTaskModule(BaseForecastingTaskModule):
+    """Lightning task module for direct forecasting in observation space.
 
     Purpose
     -------
@@ -246,7 +246,7 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
     This class owns:
 
     - the forecasting network passed in as ``network``
-    - the output-space forecasting loss
+    - the observation-space forecasting loss
     - optional masked-loss behavior using ``target_mask``
     - image and ensemble-statistic logging specific to direct forecast outputs
 
@@ -261,7 +261,7 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
     A forecasting batch provides ``input`` and ``target`` tensors, plus an
     optional ``target_mask``. The module calls ``network(input)`` to obtain a
     normalized forecast tensor, optionally applies masked loss, and compares the
-    network outputs directly against the target tensor in output space.
+    network outputs directly against the target tensor in observation space.
 
     Inference behavior
     ------------------
@@ -396,7 +396,7 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
         return list(self.network.parameters())
 
     @classmethod
-    def from_checkpoint(cls, checkpoint_path: str, device: str = "cpu") -> "OutputSpaceForecastingTaskModule":
+    def from_checkpoint(cls, checkpoint_path: str, device: str = "cpu") -> "ObservationSpaceForecastingTaskModule":
         """Load a forecasting task module from checkpoint.
 
         Parameters
@@ -408,8 +408,8 @@ class OutputSpaceForecastingTaskModule(BaseForecastingTaskModule):
 
         Returns
         -------
-        OutputSpaceForecastingTaskModule
-            Loaded output-space forecasting task module.
+        ObservationSpaceForecastingTaskModule
+            Loaded observation-space forecasting task module.
         """
         return cls.load_from_checkpoint(
             checkpoint_path,
@@ -442,7 +442,7 @@ class LatentDiffusionTaskModule(BaseForecastingTaskModule):
     It does not own:
 
     - stage-1 autoencoder training
-    - output-space supervision for the diffusion loss
+    - observation-space supervision for the diffusion loss
     - the source-data normalization rules beyond the inherited ``predict``
       helper
 

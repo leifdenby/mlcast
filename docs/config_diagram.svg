@@ -49,55 +49,55 @@
 <!-- 1 -->
 <g id="node2" class="node">
 <title>1</title>
-<polygon fill="#90ee90" stroke="none" points="97.25,-428.62 97.25,-449.38 334.75,-449.38 334.75,-428.62 97.25,-428.62"/>
-<polygon fill="none" stroke="black" points="97.25,-428.62 97.25,-449.38 334.75,-449.38 334.75,-428.62 97.25,-428.62"/>
-<text text-anchor="start" x="101.25" y="-436.88" font-family="Courier,monospace" font-size="8.00">Config:</text>
-<text text-anchor="start" x="132.75" y="-436.88" font-family="Courier,monospace" font-size="10.00"> OutputSpaceForecastingTaskModule</text>
-<polygon fill="#eeeeee" stroke="none" points="97.25,-407.88 97.25,-428.62 181,-428.62 181,-407.88 97.25,-407.88"/>
-<polygon fill="none" stroke="black" points="97.25,-407.88 97.25,-428.62 181,-428.62 181,-407.88 97.25,-407.88"/>
-<text text-anchor="start" x="135" y="-415.12" font-family="Courier,monospace" font-size="10.00">network</text>
-<polygon fill="none" stroke="black" points="181,-407.88 181,-428.62 334.75,-428.62 334.75,-407.88 181,-407.88"/>
-<polygon fill="#fff8dc" stroke="none" points="185,-411.88 185,-424.62 330.75,-424.62 330.75,-411.88 185,-411.88"/>
-<polygon fill="none" stroke="black" points="185,-411.88 185,-424.62 330.75,-424.62 330.75,-411.88 185,-411.88"/>
-<polygon fill="#eeeeee" stroke="none" points="97.25,-387.12 97.25,-407.88 181,-407.88 181,-387.12 97.25,-387.12"/>
-<polygon fill="none" stroke="black" points="97.25,-387.12 97.25,-407.88 181,-407.88 181,-387.12 97.25,-387.12"/>
-<text text-anchor="start" x="117" y="-394.38" font-family="Courier,monospace" font-size="10.00">loss_class</text>
-<polygon fill="none" stroke="black" points="181,-387.12 181,-407.88 334.75,-407.88 334.75,-387.12 181,-387.12"/>
-<text text-anchor="start" x="185" y="-394.38" font-family="Courier,monospace" font-size="10.00">&#39;crps&#39;</text>
-<polygon fill="#eeeeee" stroke="none" points="97.25,-337.62 97.25,-387.12 181,-387.12 181,-337.62 97.25,-337.62"/>
-<polygon fill="none" stroke="black" points="97.25,-337.62 97.25,-387.12 181,-387.12 181,-337.62 97.25,-337.62"/>
-<text text-anchor="start" x="111" y="-359.25" font-family="Courier,monospace" font-size="10.00">loss_params</text>
-<polygon fill="none" stroke="black" points="181,-337.62 181,-387.12 334.75,-387.12 334.75,-337.62 181,-337.62"/>
-<polygon fill="#eeeeee" stroke="none" points="185,-362.38 185,-383.12 330.75,-383.12 330.75,-362.38 185,-362.38"/>
-<polygon fill="none" stroke="black" points="185,-362.38 185,-383.12 330.75,-383.12 330.75,-362.38 185,-362.38"/>
-<text text-anchor="start" x="245.88" y="-369.62" font-family="Courier,monospace" font-size="10.00">dict</text>
-<polygon fill="#eeeeee" stroke="none" points="185,-341.62 185,-362.38 296.88,-362.38 296.88,-341.62 185,-341.62"/>
-<polygon fill="none" stroke="black" points="185,-341.62 185,-362.38 296.88,-362.38 296.88,-341.62 185,-341.62"/>
-<text text-anchor="start" x="190.88" y="-348.88" font-family="Courier,monospace" font-size="10.00">&#39;temporal_lambda&#39;</text>
-<polygon fill="none" stroke="black" points="296.88,-341.62 296.88,-362.38 330.75,-362.38 330.75,-341.62 296.88,-341.62"/>
-<text text-anchor="start" x="300.88" y="-348.88" font-family="Courier,monospace" font-size="10.00">0.01</text>
-<polygon fill="#eeeeee" stroke="none" points="97.25,-316.88 97.25,-337.62 181,-337.62 181,-316.88 97.25,-316.88"/>
-<polygon fill="none" stroke="black" points="97.25,-316.88 97.25,-337.62 181,-337.62 181,-316.88 97.25,-316.88"/>
-<text text-anchor="start" x="111" y="-324.12" font-family="Courier,monospace" font-size="10.00">masked_loss</text>
-<polygon fill="none" stroke="black" points="181,-316.88 181,-337.62 334.75,-337.62 334.75,-316.88 181,-316.88"/>
-<text text-anchor="start" x="185" y="-324.12" font-family="Courier,monospace" font-size="10.00">True</text>
-<polygon fill="#eeeeee" stroke="none" points="97.25,-296.12 97.25,-316.88 181,-316.88 181,-296.12 97.25,-296.12"/>
-<polygon fill="none" stroke="black" points="97.25,-296.12 97.25,-316.88 181,-316.88 181,-296.12 97.25,-296.12"/>
-<text text-anchor="start" x="123" y="-303.38" font-family="Courier,monospace" font-size="10.00">optimizer</text>
-<polygon fill="none" stroke="black" points="181,-296.12 181,-316.88 334.75,-316.88 334.75,-296.12 181,-296.12"/>
-<polygon fill="#ffa07a" stroke="none" points="185,-300.12 185,-312.88 330.75,-312.88 330.75,-300.12 185,-300.12"/>
-<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="185,-300.12 185,-312.88 330.75,-312.88 330.75,-300.12 185,-300.12"/>
-<polygon fill="#eeeeee" stroke="none" stroke-dasharray="5,2" points="97.25,-275.38 97.25,-296.12 181,-296.12 181,-275.38 97.25,-275.38"/>
-<polygon fill="none" stroke="black" points="97.25,-275.38 97.25,-296.12 181,-296.12 181,-275.38 97.25,-275.38"/>
-<text text-anchor="start" x="105" y="-282.62" font-family="Courier,monospace" font-size="10.00">lr_scheduler</text>
-<polygon fill="none" stroke="black" points="181,-275.38 181,-296.12 334.75,-296.12 334.75,-275.38 181,-275.38"/>
-<polygon fill="#add8e6" stroke="none" points="185,-279.38 185,-292.12 330.75,-292.12 330.75,-279.38 185,-279.38"/>
-<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="185,-279.38 185,-292.12 330.75,-292.12 330.75,-279.38 185,-279.38"/>
+<polygon fill="#90ee90" stroke="none" points="74.25,-428.62 74.25,-449.38 341.75,-449.38 341.75,-428.62 74.25,-428.62"/>
+<polygon fill="none" stroke="black" points="74.25,-428.62 74.25,-449.38 341.75,-449.38 341.75,-428.62 74.25,-428.62"/>
+<text text-anchor="start" x="78.25" y="-436.88" font-family="Courier,monospace" font-size="8.00">Config:</text>
+<text text-anchor="start" x="109.75" y="-436.88" font-family="Courier,monospace" font-size="10.00"> ObservationSpaceForecastingTaskModule</text>
+<polygon fill="#eeeeee" stroke="none" points="74.25,-407.88 74.25,-428.62 173,-428.62 173,-407.88 74.25,-407.88"/>
+<polygon fill="none" stroke="black" points="74.25,-407.88 74.25,-428.62 173,-428.62 173,-407.88 74.25,-407.88"/>
+<text text-anchor="start" x="127" y="-415.12" font-family="Courier,monospace" font-size="10.00">network</text>
+<polygon fill="none" stroke="black" points="173,-407.88 173,-428.62 341.75,-428.62 341.75,-407.88 173,-407.88"/>
+<polygon fill="#fff8dc" stroke="none" points="177,-411.88 177,-424.62 337.75,-424.62 337.75,-411.88 177,-411.88"/>
+<polygon fill="none" stroke="black" points="177,-411.88 177,-424.62 337.75,-424.62 337.75,-411.88 177,-411.88"/>
+<polygon fill="#eeeeee" stroke="none" points="74.25,-387.12 74.25,-407.88 173,-407.88 173,-387.12 74.25,-387.12"/>
+<polygon fill="none" stroke="black" points="74.25,-387.12 74.25,-407.88 173,-407.88 173,-387.12 74.25,-387.12"/>
+<text text-anchor="start" x="109" y="-394.38" font-family="Courier,monospace" font-size="10.00">loss_class</text>
+<polygon fill="none" stroke="black" points="173,-387.12 173,-407.88 341.75,-407.88 341.75,-387.12 173,-387.12"/>
+<text text-anchor="start" x="177" y="-394.38" font-family="Courier,monospace" font-size="10.00">&#39;crps&#39;</text>
+<polygon fill="#eeeeee" stroke="none" points="74.25,-337.62 74.25,-387.12 173,-387.12 173,-337.62 74.25,-337.62"/>
+<polygon fill="none" stroke="black" points="74.25,-337.62 74.25,-387.12 173,-387.12 173,-337.62 74.25,-337.62"/>
+<text text-anchor="start" x="103" y="-359.25" font-family="Courier,monospace" font-size="10.00">loss_params</text>
+<polygon fill="none" stroke="black" points="173,-337.62 173,-387.12 341.75,-387.12 341.75,-337.62 173,-337.62"/>
+<polygon fill="#eeeeee" stroke="none" points="177,-362.38 177,-383.12 337.75,-383.12 337.75,-362.38 177,-362.38"/>
+<polygon fill="none" stroke="black" points="177,-362.38 177,-383.12 337.75,-383.12 337.75,-362.38 177,-362.38"/>
+<text text-anchor="start" x="245.38" y="-369.62" font-family="Courier,monospace" font-size="10.00">dict</text>
+<polygon fill="#eeeeee" stroke="none" points="177,-341.62 177,-362.38 296.38,-362.38 296.38,-341.62 177,-341.62"/>
+<polygon fill="none" stroke="black" points="177,-341.62 177,-362.38 296.38,-362.38 296.38,-341.62 177,-341.62"/>
+<text text-anchor="start" x="190.38" y="-348.88" font-family="Courier,monospace" font-size="10.00">&#39;temporal_lambda&#39;</text>
+<polygon fill="none" stroke="black" points="296.38,-341.62 296.38,-362.38 337.75,-362.38 337.75,-341.62 296.38,-341.62"/>
+<text text-anchor="start" x="300.38" y="-348.88" font-family="Courier,monospace" font-size="10.00">0.01</text>
+<polygon fill="#eeeeee" stroke="none" points="74.25,-316.88 74.25,-337.62 173,-337.62 173,-316.88 74.25,-316.88"/>
+<polygon fill="none" stroke="black" points="74.25,-316.88 74.25,-337.62 173,-337.62 173,-316.88 74.25,-316.88"/>
+<text text-anchor="start" x="103" y="-324.12" font-family="Courier,monospace" font-size="10.00">masked_loss</text>
+<polygon fill="none" stroke="black" points="173,-316.88 173,-337.62 341.75,-337.62 341.75,-316.88 173,-316.88"/>
+<text text-anchor="start" x="177" y="-324.12" font-family="Courier,monospace" font-size="10.00">True</text>
+<polygon fill="#eeeeee" stroke="none" points="74.25,-296.12 74.25,-316.88 173,-316.88 173,-296.12 74.25,-296.12"/>
+<polygon fill="none" stroke="black" points="74.25,-296.12 74.25,-316.88 173,-316.88 173,-296.12 74.25,-296.12"/>
+<text text-anchor="start" x="115" y="-303.38" font-family="Courier,monospace" font-size="10.00">optimizer</text>
+<polygon fill="none" stroke="black" points="173,-296.12 173,-316.88 341.75,-316.88 341.75,-296.12 173,-296.12"/>
+<polygon fill="#ffa07a" stroke="none" points="177,-300.12 177,-312.88 337.75,-312.88 337.75,-300.12 177,-300.12"/>
+<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="177,-300.12 177,-312.88 337.75,-312.88 337.75,-300.12 177,-300.12"/>
+<polygon fill="#eeeeee" stroke="none" stroke-dasharray="5,2" points="74.25,-275.38 74.25,-296.12 173,-296.12 173,-275.38 74.25,-275.38"/>
+<polygon fill="none" stroke="black" points="74.25,-275.38 74.25,-296.12 173,-296.12 173,-275.38 74.25,-275.38"/>
+<text text-anchor="start" x="97" y="-282.62" font-family="Courier,monospace" font-size="10.00">lr_scheduler</text>
+<polygon fill="none" stroke="black" points="173,-275.38 173,-296.12 341.75,-296.12 341.75,-275.38 173,-275.38"/>
+<polygon fill="#add8e6" stroke="none" points="177,-279.38 177,-292.12 337.75,-292.12 337.75,-279.38 177,-279.38"/>
+<polygon fill="none" stroke="black" stroke-dasharray="5,2" points="177,-279.38 177,-292.12 337.75,-292.12 337.75,-279.38 177,-279.38"/>
 </g>
 <!-- 1&#45;&#45;2 -->
 <g id="edge1" class="edge">
 <title>1:c&#45;&#45;2:c</title>
-<path fill="none" stroke="#cbc6b0" stroke-width="3" stroke-opacity="0.501961" d="M254.85,-411.99C238.19,-383.07 156.69,-241.57 106.04,-153.63"/>
+<path fill="none" stroke="#cbc6b0" stroke-width="3" stroke-opacity="0.501961" d="M254.35,-411.99C237.74,-383.07 156.45,-241.57 105.93,-153.63"/>
 </g>
 <!-- 3 -->
 <g id="node3" class="node">
@@ -120,7 +120,7 @@
 <!-- 1&#45;&#45;3 -->
 <g id="edge2" class="edge">
 <title>1:c&#45;&#45;3:c</title>
-<path fill="none" stroke="#cb8061" stroke-width="3" stroke-opacity="0.501961" d="M256.31,-300.42C248.64,-275.58 214.78,-165.89 198.2,-112.19"/>
+<path fill="none" stroke="#cb8061" stroke-width="3" stroke-opacity="0.501961" d="M255.82,-300.42C248.21,-275.58 214.59,-165.89 198.14,-112.19"/>
 </g>
 <!-- 4 -->
 <g id="node4" class="node">
@@ -148,7 +148,7 @@
 <!-- 1&#45;&#45;4 -->
 <g id="edge3" class="edge">
 <title>1:c&#45;&#45;4:c</title>
-<path fill="none" stroke="#8aacb7" stroke-width="3" stroke-opacity="0.501961" d="M259.51,-279.75C266.47,-258.44 294.05,-174.03 310.81,-122.75"/>
+<path fill="none" stroke="#8aacb7" stroke-width="3" stroke-opacity="0.501961" d="M259.02,-279.75C266.04,-258.44 293.82,-174.03 310.71,-122.75"/>
 </g>
 <!-- 0 -->
 <g id="node5" class="node">
@@ -179,7 +179,7 @@
 <!-- 0&#45;&#45;1 -->
 <g id="edge4" class="edge">
 <title>0:c&#45;&#45;1:c</title>
-<path fill="none" stroke="#73be73" stroke-width="3" stroke-opacity="0.501961" d="M731.37,-607.89C682.15,-584.54 471.03,-484.38 334.74,-419.71"/>
+<path fill="none" stroke="#73be73" stroke-width="3" stroke-opacity="0.501961" d="M731.21,-607.89C682.79,-585.26 480,-490.49 341.58,-425.8"/>
 </g>
 <!-- 5 -->
 <g id="node7" class="node">

@@ -3,13 +3,13 @@
 from .forecasting import (
     BaseForecastingTaskModule,
     LatentDiffusionTaskModule,
-    OutputSpaceForecastingTaskModule,
+    ObservationSpaceForecastingTaskModule,
 )
 from .reconstruction import ReconstructionTaskModule
 
 __all__ = [
     "BaseForecastingTaskModule",
     "LatentDiffusionTaskModule",
-    "OutputSpaceForecastingTaskModule",
+    "ObservationSpaceForecastingTaskModule",
     "ReconstructionTaskModule",
 ]

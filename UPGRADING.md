@@ -11,7 +11,7 @@ of changes, see [CHANGELOG.md](CHANGELOG.md).
   (`input_steps + forecast_steps`) instead of `input_steps` / `forecast_steps` / `return_mask`; those move to
   `ForecastingDataModule`, which replaces `SourceDataDataModule` and takes `sequence_dataset_factory` instead of
   `dataset_factory`. Config overrides change accordingly (e.g. `data.sequence_dataset_factory.zarr_path`).
-- Replace `NowcastLightningModule` with `OutputSpaceForecastingTaskModule`; set `input_steps`,
+- Replace `NowcastLightningModule` with `ObservationSpaceForecastingTaskModule`; set `input_steps`,
   `forecast_steps` and `ensemble_size` on the network instead of the module.
 - Monitored metric names changed from `val_loss` to `val/loss` (update callbacks and dashboards).
 

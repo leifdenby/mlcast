@@ -29,7 +29,7 @@ base config on the CLI. It has breaking changes; see [UPGRADING.md](UPGRADING.md
   [\#16](https://github.com/mlcast-community/mlcast/pull/16), @leifdenby
 - **Breaking:** forecasting models take `input_steps`, `forecast_steps` and `ensemble_size` at init and return
   an explicit ensemble dimension `(B, T, M, C, H, W)`. `NowcastLightningModule` is replaced by
-  `OutputSpaceForecastingTaskModule` in `mlcast.modules.forecasting`.
+  `ObservationSpaceForecastingTaskModule` in `mlcast.modules.forecasting`.
   [\#16](https://github.com/mlcast-community/mlcast/pull/16), @leifdenby
 - **Breaking:** `training_experiment` is renamed `convgru_training_experiment` (in `mlcast.config.archetype`),
   and `mlcast train` requires an explicit `--config config:<name>` or `--config path/to/config.yaml`.
