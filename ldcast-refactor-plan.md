@@ -329,3 +329,78 @@ parameter. Ours has no CFG support.
 vs. forecast fidelity at inference time by scaling the conditional prediction
 away from the unconditional prediction. Higher guidance → more confident
 (less diverse) forecasts. This is useful operational flexibility.
+
+## 10. PR #16 review response
+
+Note: sections 0-9 describe the state before merging upstream v0.2.0; the
+precomputed CSV dataset they mention is now `SourceDataIndexedSequenceDataset`
+(see 10.0).
+
+Addresses the review by @sidekock (2026-07-01) and the discussion comments by
+@martinbo-meteo, @gdepaepe and @matschreiner on
+https://github.com/mlcast-community/mlcast/pull/16. Thread references are
+`path:line` at the reviewed commit `31805be`. One item per commit; reply to and
+resolve the thread when its commit is pushed.
+
+### 10.0 Setup
+- [x] Merge `upstream/main` (v0.2.0) into the branch; fix conflicts and get tests green
+  (`bab349c`). Upstream's `SourceDataIndexedDataset` became
+  `SourceDataIndexedSequenceDataset` (parquet `index_path`, candidate selectors), selectors
+  live on `_BaseDataModule` (both stages), `ForecastingDataset` uses the sequence-collapsed
+  `(1, C, H, W)` target mask, configs use `rainfall_flux` and the parquet index. CHANGELOG
+  and UPGRADING have Unreleased entries for this PR (wording to review).
+- [x] Forward diffusion and noise/timestep sampling out of the loss
+  (@martinbo-meteo): done in `31805be`, now in the task module training step.
+  Reply to `modules/forecasting.py:587` to clarify.
+- [x] Remove the broken `examples/scripts/simple_train.py`; point `examples/config.ipynb` at
+  `convgru_training_experiment` and re-execute it. Expanding the notebook into a Fiddle
+  introduction is a separate PR from `main`, see `fiddle-notebook-plan.md`.
+
+### 10.1 Agreed quick fixes
+- [ ] `README.md:171`: add the missing `mlcast train \` before the two diffusion examples.
+- [ ] `docs/generate_base_experiment_config_diagram.py`: rename to `generate_convgru_config_diagram.py`.
+- [ ] `config/base.py:1`: "radar nowcasting" → "nowcasting".
+- [ ] `data/reconstruction.py:1,15`: align module docstring with `forecasting.py`; drop "stage-1" wording.
+- [ ] `data/datamodules.py:63`: mark `_wrap_sequence_dataset` as `@abstractmethod`.
+- [ ] `data/reconstruction.py:43`: require `input_steps == sequence_steps` instead of taking only the first window.
+- [ ] `models/diffusion/denoiser.py:228`: warn on context/noisy time-length mismatch.
+- [ ] Renames: `TimestepEmbedding` → `DiffusionStepEmbedding` (docstring notes the usual
+  "timestep" name), `OutputSpaceForecastingTaskModule` → `ObservationSpaceForecastingTaskModule`,
+  `LatentDiffusionTaskModule` → `LatentSpaceForecastingTaskModule`.
+
+### 10.2 Bugs
+- [ ] `config/fiddlers.py:158`: `toggle_masking` breaks the reconstruction stage
+  (`ReconstructionTaskModule` has no `masked_loss`; `return_mask` leaks into DataLoader kwargs).
+- [ ] `config/fiddlers.py:138`: channel fiddler must also set output channels.
+- [ ] `config/archetype/latent_diffusion.py:47`: drop the stage-1-only `trainer` property.
+- [ ] `models/diffusion/net.py:43`: check whether `conditioner`/`denoiser`/`scheduler` attributes are used.
+- [x] `data/forecasting.py:102`: also return the target-step mask so scores can be restricted to the
+  radar domain. Covered by the merge: the mask is now valid only where every input and target
+  step is finite. Reply on the thread to explain.
+
+### 10.3 Structural changes
+- [ ] Multi-stage experiments (themes B/C/D; `convgru.py:1`, `latent_diffusion.py:150`,
+  `consistency_checks.py:121`, @gdepaepe's proposal): `Experiment` vs `MultiStageExperiment`
+  base, run/train a single stage from the CLI, per-stage checkpoint (port `resume_training`
+  from `dmidk/dev/dmi-convgru-training`), consistency checks looped over stages.
+- [ ] `LatentEncoderDecoder` ABC with `BaseEncoder`/`BaseDecoder`; rename `autoencoder` →
+  `latent_encoder_decoder` (@matschreiner, @sidekock agreed to do it in this PR).
+- [ ] `BaseDenoiser` ABC so `DenoiserUNet` is one implementation (`diffusion/net.py:22`,
+  `denoiser.py:55`); decide the `.forward()` signature.
+- [ ] VAE: mean/logvar split in the encoder, KL term, decoder takes the mean
+  (`autoencoder/net.py:65`); depends on multi-loss support (@gdepaepe). Possibly a follow-up PR.
+
+### 10.4 Discussion only (reply on PR, no code yet)
+- [ ] Train/val/test splits and leakage gaps (`latent_diffusion.py:89`, `datamodules.py:1`).
+  Partly addressed by the merge (#17): indexed samples must fit entirely inside their split, so
+  no sequence crosses a split boundary. Still open: an explicit gap between splits, and the same
+  guarantee for `SourceDataRandomSequenceDataset`.
+- [ ] Seeding: `deterministic` default vs global `seed_everything` (`sequence.py:110,401`).
+- [ ] Document fixed-constant normalisation (`sequence.py:382`, ask @franchg).
+- [ ] Separate config from logic in the package layout (@gdepaepe).
+- [ ] Multiple loss functions (@gdepaepe), ties into VAE.
+- [ ] Latent-space task module reusable beyond diffusion (@martinbo-meteo).
+- [ ] HF `diffusers` for architectures and pretrained models.
+
+### 10.5 Wrap-up
+- [ ] CHANGELOG entry, push, reply to and resolve threads, re-request review from @sidekock.
