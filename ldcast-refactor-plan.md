@@ -395,12 +395,16 @@ after.
   rework (10.6), not handled as a quick fix.
 
 ### 10.3 Step 1a: review fixes to the latent architecture classes
-- [ ] `models/diffusion/denoiser.py:11`: `TimestepEmbedding` → `DiffusionStepEmbedding`
-  (docstring notes the usual "timestep embedding" name).
-- [ ] `models/diffusion/net.py:43`: check whether the `conditioner`/`denoiser`/`scheduler`
-  attributes are used; remove or explain.
+- [x] `models/diffusion/denoiser.py:11`: `TimestepEmbedding` → `DiffusionStepEmbedding`
+  (docstring notes the usual "timestep embedding" name) (`5da1bc7`).
+- [x] `models/diffusion/net.py:43`: `scheduler` attribute was unused and is removed;
+  `conditioner`/`denoiser` are submodules used in `forward()`, now commented (`b5d83c7`).
+- [x] Naming: the schedule length is `n_diffusion_steps`, the per-sample position
+  `diffusion_step_index: Int[Tensor, " batch"]` (was `timesteps` for both), with jaxtyping
+  annotations throughout the diffusion code (`ef04b17`). Time-axis dims in the diffusion shapes
+  renamed `input_time`/`forecast_time` → `input_steps`/`forecast_steps`, matching the data layer.
 - [ ] `models/diffusion/net.py:22`, `denoiser.py:55`: `BaseDenoiser` ABC so `DenoiserUNet` is one
-  implementation (open: the `.forward()` signature; @sidekock was asked and has not answered).
+  implementation, with `forward(noisy, diffusion_step_index, context)` (decided 2026-11-13).
 - `models/autoencoder/net.py:65` (VAE mean/logvar split, KL term): decided 2026-11-13, not in
   this PR. VAE support comes in the step 3 follow-up, as one implementation of the generalised
   latent representation ABC. Replied on the thread (#discussion_r4563779373).
